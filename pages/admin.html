@@ -24,16 +24,23 @@
 
   <!-- ══ 用户管理 ══ -->
   <section class="panel active" id="panel-users">
+    <div class="notice" id="sharedNotice">
+      账号存在三处：<strong>源码内置</strong>（roles.js）、<strong>仓库名单</strong>（data/users.json）、<strong>仅本机</strong>（你这台浏览器）。
+      门户是纯静态托管，后台<strong>没有服务端可写</strong>——点「新增用户」只会落在你这台浏览器，
+      所以在这里新建或改密后，<strong>必须点「导出用户配置」下载 users.json、覆盖仓库里的 data/users.json 并提交</strong>，
+      同事才登录得上。只在本机的改动会在列表里标 <span class="tag tag-pink">待发布</span>。
+    </div>
     <div class="toolbar">
       <input type="search" id="userSearch" class="input" placeholder="搜索姓名 / 账号">
+      <button class="btn btn-ghost" id="btnExportUsers">导出用户配置</button>
       <button class="btn btn-primary" id="btnAddUser">+ 新增用户</button>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>姓名</th><th>账号</th><th>角色</th><th>状态</th><th>最近登录</th><th style="width:190px">操作</th></tr>
+          <tr><th>姓名</th><th>账号</th><th>角色</th><th>状态</th><th>来源</th><th>最近登录</th><th style="width:190px">操作</th></tr>
         </thead>
-        <tbody id="userRows"><tr><td colspan="6" class="loading">加载中…</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="7" class="loading">加载中…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -95,7 +102,7 @@
 </div>
 
 <script src="js/config/roles.js?v=2.0.0"></script>
-<script src="js/api.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.4.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/portal.js?v=2.0.0"></script>
 <script>
@@ -151,14 +158,22 @@
       return (u.name || '').toLowerCase().indexOf(q) !== -1 || (u.username || '').toLowerCase().indexOf(q) !== -1;
     });
     var tb = document.getElementById('userRows');
-    if (!list.length) { tb.innerHTML = '<tr><td colspan="6" class="loading">没有匹配的用户</td></tr>'; return; }
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="7" class="loading">没有匹配的用户</td></tr>'; return; }
     tb.innerHTML = list.map(function (u) {
       var r = ROLES[u.role] || { name: u.role, color: '#888' };
+      var src = {
+        builtin: '<span class="tag tag-blue">源码</span>',
+        remote:  '<span class="tag tag-green">仓库</span>',
+        local:   '<span class="tag tag-pink">待发布</span>'
+      }[u.source || 'builtin'] || '<span class="tag">未知</span>';
+      var warn = (u.hashAlgo === 'legacy-djb2')
+        ? ' <span class="tag tag-pink" title="旧版降级哈希，无法校验，请点「改密」重设">需重置密码</span>' : '';
       return '<tr>' +
-        '<td><strong>' + esc(u.name) + '</strong>' + (u.username === 'admin' ? ' <span class="tag tag-green">内置</span>' : '') + '</td>' +
+        '<td><strong>' + esc(u.name) + '</strong>' + (u.username === 'admin' ? ' <span class="tag tag-green">内置</span>' : '') + warn + '</td>' +
         '<td class="mono">' + esc(u.username) + '</td>' +
         '<td><span class="tag" style="background:' + r.color + '22;color:' + r.color + ';border:1px solid ' + r.color + '55">' + esc(r.name) + '</span></td>' +
         '<td>' + (u.active ? '<span class="tag tag-green">正常</span>' : '<span class="tag tag-pink">已停用</span>') + '</td>' +
+        '<td>' + src + '</td>' +
         '<td class="mono muted">' + esc(Portal.fmtTime(u.lastLogin)) + '</td>' +
         '<td class="row-actions">' +
           '<button class="btn-mini" data-act="edit" data-id="' + u.id + '">编辑</button>' +
@@ -189,7 +204,7 @@
             active: document.getElementById('mActive').value === '1'
           }).then(function (res) {
             if (!res.ok) return Portal.toast(res.error || '保存失败', 'error');
-            Portal.toast('已保存'); closeModal(); loadUsers();
+            Portal.toast('已保存（仅本机生效，请导出并提交）'); closeModal(); loadUsers();
           });
         });
     }
@@ -200,7 +215,7 @@
         function () {
           API.put('/api/users/' + u.id, { password: document.getElementById('mPwd').value }).then(function (res) {
             if (!res.ok) return Portal.toast(res.error || '重置失败', 'error');
-            Portal.toast('密码已重置'); closeModal();
+            Portal.toast('密码已重置（仅本机生效，请导出并提交）'); closeModal();
           });
         });
     }
@@ -209,7 +224,7 @@
       if (!confirm('确认删除用户「' + u.name + '（' + u.username + '）」？此操作不可撤销。')) return;
       API.del('/api/users/' + u.id).then(function (res) {
         if (!res.ok) return Portal.toast(res.error || '删除失败', 'error');
-        Portal.toast('已删除'); loadUsers();
+        Portal.toast('已删除（仅本机生效，请导出并提交）'); loadUsers();
       });
     }
   });
@@ -228,9 +243,24 @@
           role: document.getElementById('mRole').value
         }).then(function (res) {
           if (!res.ok) return Portal.toast(res.error || '创建失败', 'error');
-          Portal.toast('已创建'); closeModal(); loadUsers();
+          Portal.toast('已创建（仅本机生效，请点「导出用户配置」并提交仓库）'); closeModal(); loadUsers();
         });
       });
+  });
+
+  /* ── 导出共享名单：下载 users.json，覆盖仓库 data/users.json 后提交 ── */
+  document.getElementById('btnExportUsers').addEventListener('click', function () {
+    API.get('/api/users/export').then(function (res) {
+      if (!res.ok) return Portal.toast(res.error || '导出失败', 'error');
+      var s = res.stats || {};
+      var body = JSON.stringify(res.payload, null, 2) + '\n';
+      var url = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
+      var a = document.createElement('a');
+      a.href = url; a.download = 'users.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      Portal.toast('已导出 ' + s.exported + ' 个账号 → 覆盖 data/users.json 并提交');
+    });
   });
 
   document.getElementById('userSearch').addEventListener('input', renderUsers);
@@ -240,6 +270,25 @@
       if (!res.ok) { Portal.toast(res.error || '加载失败', 'error'); return; }
       USERS = res.users || [];
       renderUsers();
+      renderRemoteStatus();
+    });
+  }
+
+  /* 共享名单加载状态（拉不到 users.json 时，新同事会登不上——必须让管理员看见）
+     ⚠️ 必须等 ensureRemote 落地后再判断，否则首次加载时读到的还是 {error:null}（竞态） */
+  function renderRemoteStatus() {
+    var el = document.getElementById('sharedNotice');
+    if (!el) return;
+    var ready = API.remoteReady ? API.remoteReady() : Promise.resolve();
+    Promise.resolve(ready).then(function () {
+      var r = API.remote ? API.remote() : {};
+      if (!r.error) return;
+      el.className = 'alert alert-error show';
+      el.innerHTML = '⚠️ 共享名单 <code>data/users.json</code> 加载失败（' + esc(r.error) + '）。' +
+        '仓库名单里的账号当前无法登录，请检查文件是否存在 / 路径是否正确。' +
+        '<button class="btn-mini" id="btnRetryRemote">重试</button>';
+      var rb = document.getElementById('btnRetryRemote');
+      if (rb) rb.addEventListener('click', function () { API.refreshRemote().then(loadUsers); });
     });
   }
 

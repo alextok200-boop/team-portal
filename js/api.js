@@ -16,10 +16,14 @@ var API = (function () {
   var K = {
     token: 'portal_token',
     user:  'portal_user',
-    users: 'portal_users',
+    users: 'portal_users',          // 本机新增/修改的「覆盖层」（仅在管理员这台浏览器生效）
+    usersRemote: 'portal_users_remote', // data/users.json 的本地缓存（全站共享名单）
+    lastLogin: 'portal_lastlogin',  // {uid: iso} 独立存放，避免登录时重写用户表
     roles: 'portal_roles',
     logs:  'portal_logs'
   };
+
+  var REMOTE_URL = 'data/users.json';
 
   /* ── 基础存储 ────────────────────────────────── */
   function readJSON(key, fb) {
@@ -32,12 +36,130 @@ var API = (function () {
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
-  /* ── 用户 / 角色 / 日志（默认 + localStorage 覆盖）──── */
-  function loadUsers() {
-    var u = readJSON(K.users, null);
-    return (u && u.length) ? u : clone(DEFAULT_USERS);
+  /* ══════════════════════════════════════════════════════════
+     用户表：三源合并
+     ──────────────────────────────────────────────────────────
+       ① DEFAULT_USERS     js/config/roles.js   随源码部署，全站生效
+       ② data/users.json   仓库文件           随源码部署，全站生效 ← 新增用户靠它
+       ③ localStorage      本机覆盖层         只在管理员这台浏览器生效
+     优先级：③ > ② > ①，按 username（忽略大小写）去重。
+     同名用户被高优先级整体覆盖，不做字段级合并。
+
+     ⚠️ 为什么会这样：GitHub Pages 是纯静态托管，浏览器没有服务端可写。
+        所以「新增用户」在后台点完只落在本机 localStorage，
+        必须导出 data/users.json 并提交，同事才登得上。
+     ══════════════════════════════════════════════════════════ */
+
+  var REMOTE = { loaded: false, error: null, count: 0 };
+
+  /* ② data/users.json：拉取 + 缓存 */
+  function loadRemoteCache() {
+    var d = readJSON(K.usersRemote, null);
+    return (d && d.users && d.users.length) ? d.users : [];
   }
-  function saveUsers(list) { writeJSON(K.users, list); }
+  function loadRemoteDeleted() {
+    var d = readJSON(K.usersRemote, null);
+    return (d && d.deleted) || [];
+  }
+  function ensureRemote(force) {
+    if (REMOTE.loaded && !force) return Promise.resolve(REMOTE);
+    var base = (window.SITE_BASE || '/');
+    return fetch(base + REMOTE_URL, { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) {
+        var list = (d && d.users) || [];
+        writeJSON(K.usersRemote, { version: (d && d.version) || 1, updatedAt: (d && d.updatedAt) || null, deleted: (d && d.deleted) || [], users: list });
+        REMOTE = { loaded: true, error: null, count: list.length };
+        return REMOTE;
+      })
+      .catch(function (e) {
+        REMOTE = { loaded: true, error: String((e && e.message) || e), count: loadRemoteCache().length };
+        return REMOTE;
+      });
+  }
+
+  /* ③ 本机覆盖层 */
+  function loadLocal() { return readJSON(K.users, null) || []; }
+  function saveLocal(list) { writeJSON(K.users, list); }
+
+  /* 同名去重合并（低优先级在前） */
+  function mergeByUsername() {
+    var layers = arguments, idx = {}, out = [];
+    for (var i = 0; i < layers.length; i++) {
+      (layers[i] || []).forEach(function (u) {
+        if (!u || !u.username) return;
+        var key = String(u.username).toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(idx, key)) out[idx[key]] = u;
+        else { idx[key] = out.length; out.push(u); }
+      });
+    }
+    return out;
+  }
+
+  /* 两条记录「身份字段」是否等价（忽略 lastLogin / createdAt 之类噪声） */
+  function sameIdentity(a, b) {
+    if (!a || !b) return false;
+    return String(a.role) === String(b.role)
+      && (a.active !== false) === (b.active !== false)
+      && String(a.passwordHash || '') === String(b.passwordHash || '')
+      && String(a.name || '') === String(b.name || '');
+  }
+
+  /* 清掉「本机覆盖层」里与共享名单等价的陈旧副本
+     （历史版本登录时会把整表写进 localStorage，成员浏览器里会留下快照，
+       若不清理，管理员远端改了密码，成员本机的旧快照会把它盖回去） */
+  function pruneLocal(local, shared) {
+    var byName = {};
+    shared.forEach(function (u) { if (u && u.username) byName[String(u.username).toLowerCase()] = u; });
+    return local.filter(function (u) {
+      var b = byName[String(u.username || '').toLowerCase()];
+      return !b || !sameIdentity(u, b);
+    });
+  }
+
+  function loadLastLogin() { return readJSON(K.lastLogin, {}) || {}; }
+  function touchLastLogin(id, iso) {
+    var m = loadLastLogin();
+    m[id] = iso;
+    writeJSON(K.lastLogin, m);
+  }
+
+  /* 最终用户表 */
+  function loadUsers() {
+    var rawLocal = loadLocal();
+    var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
+    var local = pruneLocal(rawLocal, shared);
+    if (local.length !== rawLocal.length) saveLocal(local);   // 清掉陈旧整表副本，避免盖住仓库里的新改动
+    var merged = mergeByUsername(clone(DEFAULT_USERS), loadRemoteCache(), local);
+    var gone = {};
+    loadRemoteDeleted().forEach(function (n) { gone[String(n).toLowerCase()] = 1; });
+    local.forEach(function (u) { if (u && u._deleted) gone[String(u.username).toLowerCase()] = 1; });
+    merged = merged.filter(function (u) { return !u._deleted && !gone[String(u.username).toLowerCase()]; });
+    var ll = loadLastLogin();
+    merged.forEach(function (u) { if (ll[u.id]) u.lastLogin = ll[u.id]; });
+    return merged;
+  }
+
+  /* 账号来源：源码内置 / 仓库共享名单 / 仅本机 */
+  function userSource(u) {
+    if (u.builtin) return 'builtin';
+    if (loadLocal().some(function (x) { return !x._deleted && x.username && x.username.toLowerCase() === String(u.username).toLowerCase(); })) return 'local';
+    if (loadRemoteCache().some(function (x) { return x.username && x.username.toLowerCase() === String(u.username).toLowerCase(); })) return 'remote';
+    return 'builtin';
+  }
+
+  /* 写回「本机覆盖层」：只落差异记录，不再把整表写进 localStorage */
+  function saveUsers(list) {
+    var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
+    var byName = {};
+    shared.forEach(function (u) { if (u && u.username) byName[String(u.username).toLowerCase()] = u; });
+    // 与共享名单等价的不需要落盘；_deleted 墓碑必须保留
+    saveLocal(list.filter(function (u) {
+      if (u && u._deleted) return true;
+      var b = byName[String((u && u.username) || '').toLowerCase()];
+      return !b || !sameIdentity(u, b);
+    }));
+  }
 
   function loadRoles() {
     var r = readJSON(K.roles, null);
@@ -55,23 +177,43 @@ var API = (function () {
   }
 
   /* ── SHA-256（异步）──────────────────────────── */
+  /* ⚠️ crypto.subtle 只在「安全上下文」可用：https:// 、localhost 、file:// 。
+     用 http://192.168.x.x 这类内网 IP 打开时它不存在。
+     历史版本在这里降级成 djb2 8 位散列，结果是：
+       内网 IP 下建的号 → 哈希是 djb2 → 换成 https 登录时算 SHA-256 → 永远比对不上。
+     所以这里不再降级，直接拒绝并给出明确提示，从源头杜绝「同一个号两种哈希」。 */
+  function isSecureContext() {
+    return !!(window.crypto && crypto.subtle);
+  }
   function sha256Hex(str) {
-    if (window.crypto && crypto.subtle) {
-      return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
-        .then(function (buf) {
-          return Array.from(new Uint8Array(buf)).map(function (b) {
-            return b.toString(16).padStart(2, '0');
-          }).join('');
-        });
-    }
-    // 降级：非加密上下文（file:// 等）用简单散列
-    return Promise.resolve(djb2(str));
+    if (!isSecureContext()) return Promise.reject(new Error('INSECURE_CONTEXT'));
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+      .then(function (buf) {
+        return Array.from(new Uint8Array(buf)).map(function (b) {
+          return b.toString(16).padStart(2, '0');
+        }).join('');
+      });
   }
-  function djb2(s) {
-    var h = 5381;
-    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-    return ('00000000' + h.toString(16)).slice(-8);
+
+  /* 新哈希带算法前缀，便于将来换算法时平滑迁移 */
+  function hashPassword(pw) {
+    return sha256Hex(pw).then(function (h) { return 'sha256$' + h; });
   }
+  /* 兼容历史无前缀的裸 SHA-256；旧 djb2（8 位）已无法校验，判定为不匹配 */
+  function hashMatches(computedHex, stored) {
+    var s = String(stored || '');
+    if (!s) return false;
+    if (s.indexOf('sha256$') === 0) return s.slice(7) === computedHex;
+    if (/^[0-9a-f]{64}$/.test(s)) return s === computedHex;   // 历史裸 SHA-256
+    return false;                                             // 历史 djb2 等，需管理员重置
+  }
+  function hashAlgo(stored) {
+    var s = String(stored || '');
+    if (s.indexOf('sha256$') === 0 || /^[0-9a-f]{64}$/.test(s)) return 'sha256';
+    if (/^[0-9a-f]{8}$/.test(s)) return 'legacy-djb2';
+    return 'unknown';
+  }
+  var INSECURE_MSG = '当前访问方式不安全（非 https / 非 localhost），浏览器已禁用加密模块，无法校验密码。请改用 https:// 地址访问门户。';
 
   /* ── 会话 ────────────────────────────────────── */
   function getToken() { try { return localStorage.getItem(K.token) || ''; } catch (e) { return ''; } }
@@ -104,7 +246,9 @@ var API = (function () {
     return {
       id: u.id, username: u.username, name: u.name, role: u.role,
       active: u.active !== false, createdAt: u.createdAt, lastLogin: u.lastLogin || null,
-      builtin: !!u.builtin
+      builtin: !!u.builtin,
+      source: userSource(u),              // builtin=源码 / remote=仓库名单 / local=仅本机
+      hashAlgo: hashAlgo(u.passwordHash)  // legacy-djb2 说明该账号需重置密码
     };
   }
   /* 完整用户视图（带角色名/颜色/落地页/权限） */
@@ -148,21 +292,25 @@ var API = (function () {
       var username = String(body.username || '').trim();
       var password = String(body.password || '');
       if (!username || !password) return err(400, '请输入账号与密码');
-      var users = loadUsers();
-      var u = users.filter(function (x) { return x.username.toLowerCase() === username.toLowerCase(); })[0];
-      if (!u) return err(401, '账号或密码错误');
-      if (u.active === false) return err(403, '账号已停用，请联系管理员');
-      return sha256Hex(password).then(function (h) {
-        if (h !== u.passwordHash) {
-          appendLog({ time: new Date().toISOString(), username: u.username, name: u.name, role: u.role, ok: false, reason: '密码错误', ip: 'local' });
-          return err(401, '账号或密码错误');
-        }
-        u.lastLogin = new Date().toISOString();
-        saveUsers(users);
-        setToken(makeToken(u.id));
-        setCachedUser(fullUser(u));
-        appendLog({ time: u.lastLogin, username: u.username, name: u.name, role: u.role, ok: true, reason: '登录成功', ip: 'local' });
-        return ok(200, { token: getToken(), user: fullUser(u) });
+      if (!isSecureContext()) return err(400, INSECURE_MSG);
+      // 先确保共享名单（data/users.json）已加载，再比对——否则新同事第一次访问会漏账号
+      return ensureRemote().then(function () {
+        var users = loadUsers();
+        var u = users.filter(function (x) { return x.username.toLowerCase() === username.toLowerCase(); })[0];
+        if (!u) return err(401, '账号或密码错误');
+        if (u.active === false) return err(403, '账号已停用，请联系管理员');
+        return sha256Hex(password).then(function (h) {
+          if (!hashMatches(h, u.passwordHash)) {
+            appendLog({ time: new Date().toISOString(), username: u.username, name: u.name, role: u.role, ok: false, reason: '密码错误', ip: 'local' });
+            return err(401, '账号或密码错误');
+          }
+          u.lastLogin = new Date().toISOString();
+          touchLastLogin(u.id, u.lastLogin);   // 只记登录时间，不再回写整张用户表
+          setToken(makeToken(u.id));
+          setCachedUser(fullUser(u));
+          appendLog({ time: u.lastLogin, username: u.username, name: u.name, role: u.role, ok: true, reason: '登录成功', ip: 'local' });
+          return ok(200, { token: getToken(), user: fullUser(u) });
+        });
       });
     }
 
@@ -198,6 +346,7 @@ var API = (function () {
     }
     if (url === '/api/users' && method === 'POST') {
       if (!isAdmin()) return err(403, '需要管理员权限');
+      if (!isSecureContext()) return err(400, INSECURE_MSG);
       var b = body;
       var nu = String(b.username || '').trim();
       var np = String(b.password || '');
@@ -209,18 +358,50 @@ var API = (function () {
       if (!loadRoles()[nr]) return err(400, '角色不存在');
       var us = loadUsers();
       if (us.some(function (x) { return x.username.toLowerCase() === nu.toLowerCase(); })) return err(409, '该账号已存在');
-      return sha256Hex(np).then(function (h) {
+      return hashPassword(np).then(function (h) {
         var uu = { id: 'u_' + Date.now().toString(36), username: nu, passwordHash: h, name: nn, role: nr, active: true, builtin: false, createdAt: new Date().toISOString(), lastLogin: null };
         us.push(uu);
         saveUsers(us);
         var cu2 = currentUser();
-        if (cu2) appendLog({ time: new Date().toISOString(), username: cu2.username, name: cu2.name, role: cu2.role, ok: true, reason: '新增用户 ' + nu + '（' + nr + '）', ip: 'local' });
-        return ok(200, { user: publicUser(uu) });
+        if (cu2) appendLog({ time: new Date().toISOString(), username: cu2.username, name: cu2.name, role: cu2.role, ok: true, reason: '新增用户 ' + nu + '（' + nr + '）· 本机', ip: 'local' });
+        return ok(200, { user: publicUser(uu), pending: true });
+      });
+    }
+
+    /* ── 导出共享名单（admin）
+       供管理后台一键下载 data/users.json —— 提交到仓库后全站生效 ── */
+    if (url === '/api/users/export' && method === 'GET') {
+      if (!isAdmin()) return err(403, '需要管理员权限');
+      var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
+      var local = loadLocal();
+      var rows = loadUsers().filter(function (u) {
+        var base = shared.filter(function (x) { return x.username && u.username && x.username.toLowerCase() === u.username.toLowerCase(); })[0];
+        return !base || !sameIdentity(u, base);   // 与源码/仓库等价的不用重复导出
+      });
+      var deleted = loadRemoteDeleted().slice();
+      local.forEach(function (u) { if (u && u._deleted && u.username && deleted.indexOf(u.username) === -1) deleted.push(u.username); });
+      rows = rows.filter(function (u) { return deleted.indexOf(u.username) === -1; });
+      return ok(200, {
+        payload: {
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          note: '团队门户共享账号名单。由管理后台「导出用户配置」生成。passwordHash 为 sha256$ 前缀的 SHA-256，非明文。deleted 为已删除账号的用户名列表。',
+          deleted: deleted,
+          users: rows.map(function (u) {
+            return {
+              id: u.id, username: u.username, name: u.name, role: u.role,
+              passwordHash: u.passwordHash, active: u.active !== false,
+              builtin: false, createdAt: u.createdAt || new Date().toISOString(), lastLogin: null
+            };
+          })
+        },
+        stats: { total: loadUsers().length, exported: rows.length, deleted: deleted.length }
       });
     }
     var mUsers = url.match(/^\/api\/users\/([^\/]+)$/);
     if (mUsers && method === 'PUT') {
       if (!isAdmin()) return err(403, '需要管理员权限');
+      if (!isSecureContext()) return err(400, INSECURE_MSG);
       var id = mUsers[1];
       var us = loadUsers();
       var u = us.filter(function (x) { return x.id === id; })[0];
@@ -245,18 +426,18 @@ var API = (function () {
       }
       if (b.password) {
         if (String(b.password).length < 6) return err(400, '密码至少 6 位');
-        return sha256Hex(String(b.password)).then(function (h) {
+        return hashPassword(String(b.password)).then(function (h) {
           u.passwordHash = h;
           saveUsers(us);
           var cu3 = currentUser();
-          if (cu3) appendLog({ time: new Date().toISOString(), username: cu3.username, name: cu3.name, role: cu3.role, ok: true, reason: '修改用户 ' + u.username, ip: 'local' });
-          return ok(200, { user: publicUser(u) });
+          if (cu3) appendLog({ time: new Date().toISOString(), username: cu3.username, name: cu3.name, role: cu3.role, ok: true, reason: '修改用户 ' + u.username + ' · 本机', ip: 'local' });
+          return ok(200, { user: publicUser(u), pending: true });
         });
       }
       saveUsers(us);
       var cu4 = currentUser();
-      if (cu4) appendLog({ time: new Date().toISOString(), username: cu4.username, name: cu4.name, role: cu4.role, ok: true, reason: '修改用户 ' + u.username, ip: 'local' });
-      return ok(200, { user: publicUser(u) });
+      if (cu4) appendLog({ time: new Date().toISOString(), username: cu4.username, name: cu4.name, role: cu4.role, ok: true, reason: '修改用户 ' + u.username + ' · 本机', ip: 'local' });
+      return ok(200, { user: publicUser(u), pending: true });
     }
     if (mUsers && method === 'DELETE') {
       if (!isAdmin()) return err(403, '需要管理员权限');
@@ -267,9 +448,17 @@ var API = (function () {
       if (u.username === 'admin') return err(400, '内置 admin 账号不可删除');
       var cu5 = currentUser();
       if (cu5 && u.id === cu5.id) return err(400, '不能删除自己');
+      // 源码/仓库里的账号删不掉（合并时会被还原），改用「墓碑」标记：导出后全站同步删除
+      var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
+      var inShared = shared.some(function (x) { return x.username && x.username.toLowerCase() === u.username.toLowerCase(); });
       saveUsers(us.filter(function (x) { return x.id !== id; }));
-      if (cu5) appendLog({ time: new Date().toISOString(), username: cu5.username, name: cu5.name, role: cu5.role, ok: true, reason: '删除用户 ' + u.username, ip: 'local' });
-      return ok(200, {});
+      if (inShared) {
+        var lc = loadLocal();
+        lc.push({ id: 'del_' + Date.now().toString(36), username: u.username, name: u.name, role: u.role, _deleted: true, deletedAt: new Date().toISOString() });
+        saveLocal(lc);
+      }
+      if (cu5) appendLog({ time: new Date().toISOString(), username: cu5.username, name: cu5.name, role: cu5.role, ok: true, reason: '删除用户 ' + u.username + ' · 本机', ip: 'local' });
+      return ok(200, { pending: true });
     }
 
     /* ── 角色配置（admin）──────────────────────── */
@@ -345,6 +534,9 @@ var API = (function () {
   }
 
   /* ── 对外 API（与原后端同签名）────────────── */
+  /* 页面一打开就预热共享名单，让登录/用户列表拿到的都是最新数据 */
+  try { ensureRemote(); } catch (e) { /* 忽略 */ }
+
   return {
     get:  function (u) { return request('GET', u); },
     post: function (u, b) { return request('POST', u, b); },
@@ -355,6 +547,13 @@ var API = (function () {
     setToken: setToken,
     getCachedUser: getCachedUser,
     setCachedUser: setCachedUser,
-    clear: clear
+    clear: clear,
+
+    /* 共享名单（data/users.json）状态与手动刷新 */
+    remote: function () { return REMOTE; },
+    remoteReady: function () { return ensureRemote(); },   // 等名单拉取落地（含失败）后再读 remote()
+    refreshRemote: function () { return ensureRemote(true); },
+    isSecure: isSecureContext,
+    insecureMsg: INSECURE_MSG
   };
 })();

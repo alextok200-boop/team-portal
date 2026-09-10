@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "updatedAt": null,
+  "note": "团队门户共享账号名单。本文件随仓库部署，所有设备/浏览器通用。新增用户请在管理后台点「导出用户配置」下载 users.json，覆盖本文件后提交即可全站生效（也可用 tools/add-user.py 命令行加号）。passwordHash 为 SHA-256（sha256$ 前缀），非明文。deleted 为已删除账号的用户名列表（用于删除源码内置账号时全站同步）。",
+  "deleted": [],
+  "users": []
+}
