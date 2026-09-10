@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-09-10T08:03:52.501Z",
-  "fetchedAtLocal": "2026/9/10 08:03:52",
+  "fetchedAt": "2026-09-10T08:15:22.275Z",
+  "fetchedAtLocal": "2026/9/10 08:15:22",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -15,6 +15,32 @@
   "rawRowsTotal": 24246,
   "droppedEmptyRowsTotal": 22572,
   "truncatedTables": [],
+  "emptyTables": [
+    {
+      "key": "overview",
+      "name": "1.日报总览"
+    },
+    {
+      "key": "ads",
+      "name": "3.投放日报"
+    },
+    {
+      "key": "content",
+      "name": "4.内容达人日报"
+    },
+    {
+      "key": "traffic",
+      "name": "5.流量竞品日报"
+    },
+    {
+      "key": "supply",
+      "name": "6.供应链客服日报"
+    },
+    {
+      "key": "team",
+      "name": "7.团队战力评估"
+    }
+  ],
   "complete": true,
   "failedTables": [],
   "tables": [
