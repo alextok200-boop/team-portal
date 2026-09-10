@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card" style="text-align:center">
+    <div class="login-head">
+      <div class="mark">⚡</div>
+      <h1>团队门户</h1>
+      <p id="tip">正在检查登录状态…</p>
+    </div>
+    <div id="actions" style="display:none">
+      <a href="login.html" class="btn btn-primary btn-block">前往登录</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script>
+(function () {
+  var tip = document.getElementById('tip');
+  var actions = document.getElementById('actions');
+
+  if (!API.getToken()) {
+    tip.textContent = '请先登录以访问受保护内容';
+    actions.style.display = 'block';
+    return;
+  }
+
+  Auth.init().then(function (u) {
+    if (u) {
+      tip.textContent = '欢迎回来，' + u.name + '，正在进入…';
+      setTimeout(function () { window.location.replace(Site.url(u.landing || '/pages/dashboard.html')); }, 450);
+    } else {
+      tip.textContent = '登录状态已失效，请重新登录';
+      actions.style.display = 'block';
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

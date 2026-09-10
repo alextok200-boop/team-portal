@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">管理后台</h1>
+  <p class="page-sub">用户账号、角色权限、数据同步与登录审计</p>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="users">用户管理</button>
+    <button class="tab" data-tab="roles">角色权限</button>
+    <button class="tab" data-tab="data">数据同步</button>
+    <button class="tab" data-tab="logs">登录日志</button>
+  </div>
+
+  <!-- ══ 用户管理 ══ -->
+  <section class="panel active" id="panel-users">
+    <div class="toolbar">
+      <input type="search" id="userSearch" class="input" placeholder="搜索姓名 / 账号">
+      <button class="btn btn-primary" id="btnAddUser">+ 新增用户</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>姓名</th><th>账号</th><th>角色</th><th>状态</th><th>最近登录</th><th style="width:190px">操作</th></tr>
+        </thead>
+        <tbody id="userRows"><tr><td colspan="6" class="loading">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══ 角色权限 ══ -->
+  <section class="panel" id="panel-roles">
+    <div class="notice">
+      勾选该角色可以访问的页面，保存后立即生效——成员下次刷新页面即按新权限展示导航。
+      <strong>内置管理员</strong>固定拥有全部权限，不可修改。
+    </div>
+    <div class="grid" id="roleCards"></div>
+  </section>
+
+  <!-- ══ 数据同步 ══ -->
+  <section class="panel" id="panel-data">
+    <div class="notice">
+      数据源：钉钉 AI 表格《电商营销备战-日报追踪表》。
+      服务端已配置每日 <strong>11:05</strong> 自动抓取（需本机 dws 处于登录态）。
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnRefresh">立即抓取最新数据</button>
+      <span class="muted" id="fetchMeta"></span>
+    </div>
+    <div class="stats" id="dataStats"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>表名</th><th>分组</th><th>字段数</th><th>行数</th></tr></thead>
+        <tbody id="dataRows"><tr><td colspan="4" class="loading">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══ 登录日志 ══ -->
+  <section class="panel" id="panel-logs">
+    <div class="toolbar">
+      <span class="muted" id="logMeta"></span>
+      <button class="btn btn-ghost" id="btnClearLogs">清空日志</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>时间</th><th>账号</th><th>姓名</th><th>角色</th><th>结果</th><th>说明</th><th>IP</th></tr></thead>
+        <tbody id="logRows"><tr><td colspan="7" class="loading">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- 弹窗 -->
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h3 id="modalTitle">编辑</h3>
+    <form id="modalForm"><div id="modalBody"></div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" id="modalCancel">取消</button>
+        <button type="submit" class="btn btn-primary" id="modalSave">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  'use strict';
+
+  var ROLES = {};      // key -> {name,color,pages,landing,desc,builtin}
+  var PAGES = [];      // [{path,label,group}]
+  var USERS = [];
+
+  var esc = Portal.esc;
+
+  /* ── 标签页切换 ─────────────────────────────── */
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var t = e.target.closest('.tab');
+    if (!t) return;
+    [].forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
+    [].forEach.call(document.querySelectorAll('.panel'), function (x) { x.classList.remove('active'); });
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+  });
+
+  /* ── 弹窗 ───────────────────────────────────── */
+  var modal = document.getElementById('modal');
+  var modalForm = document.getElementById('modalForm');
+  var onSubmit = null;
+
+  function openModal(title, bodyHtml, submitFn) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = bodyHtml;
+    onSubmit = submitFn;
+    modal.classList.add('show');
+  }
+  function closeModal() { modal.classList.remove('show'); onSubmit = null; }
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  modalForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (onSubmit) onSubmit();
+  });
+
+  function roleOptions(selected) {
+    return Object.keys(ROLES).map(function (k) {
+      return '<option value="' + k + '"' + (k === selected ? ' selected' : '') + '>' + esc(ROLES[k].name) + '</option>';
+    }).join('');
+  }
+
+  /* ══ 用户管理 ══════════════════════════════ */
+  function renderUsers() {
+    var q = document.getElementById('userSearch').value.trim().toLowerCase();
+    var list = USERS.filter(function (u) {
+      if (!q) return true;
+      return (u.name || '').toLowerCase().indexOf(q) !== -1 || (u.username || '').toLowerCase().indexOf(q) !== -1;
+    });
+    var tb = document.getElementById('userRows');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="6" class="loading">没有匹配的用户</td></tr>'; return; }
+    tb.innerHTML = list.map(function (u) {
+      var r = ROLES[u.role] || { name: u.role, color: '#888' };
+      return '<tr>' +
+        '<td><strong>' + esc(u.name) + '</strong>' + (u.username === 'admin' ? ' <span class="tag tag-green">内置</span>' : '') + '</td>' +
+        '<td class="mono">' + esc(u.username) + '</td>' +
+        '<td><span class="tag" style="background:' + r.color + '22;color:' + r.color + ';border:1px solid ' + r.color + '55">' + esc(r.name) + '</span></td>' +
+        '<td>' + (u.active ? '<span class="tag tag-green">正常</span>' : '<span class="tag tag-pink">已停用</span>') + '</td>' +
+        '<td class="mono muted">' + esc(Portal.fmtTime(u.lastLogin)) + '</td>' +
+        '<td class="row-actions">' +
+          '<button class="btn-mini" data-act="edit" data-id="' + u.id + '">编辑</button>' +
+          '<button class="btn-mini" data-act="pwd" data-id="' + u.id + '">改密</button>' +
+          (u.username === 'admin' ? '' : '<button class="btn-mini danger" data-act="del" data-id="' + u.id + '">删除</button>') +
+        '</td></tr>';
+    }).join('');
+  }
+
+  document.getElementById('userRows').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    var u = USERS.find(function (x) { return x.id === b.dataset.id; });
+    if (!u) return;
+
+    if (b.dataset.act === 'edit') {
+      openModal('编辑用户 · ' + u.name,
+        '<div class="field"><label>姓名</label><input id="mName" value="' + esc(u.name) + '" required></div>' +
+        '<div class="field"><label>账号</label><input id="mUser" value="' + esc(u.username) + '"' + (u.username === 'admin' ? ' disabled' : '') + '></div>' +
+        '<div class="field"><label>角色</label><select id="mRole">' + roleOptions(u.role) + '</select></div>' +
+        '<div class="field"><label>状态</label><select id="mActive">' +
+          '<option value="1"' + (u.active ? ' selected' : '') + '>正常</option>' +
+          '<option value="0"' + (!u.active ? ' selected' : '') + '>停用</option></select></div>',
+        function () {
+          API.put('/api/users/' + u.id, {
+            name: document.getElementById('mName').value.trim(),
+            role: document.getElementById('mRole').value,
+            active: document.getElementById('mActive').value === '1'
+          }).then(function (res) {
+            if (!res.ok) return Portal.toast(res.error || '保存失败', 'error');
+            Portal.toast('已保存'); closeModal(); loadUsers();
+          });
+        });
+    }
+
+    if (b.dataset.act === 'pwd') {
+      openModal('重置密码 · ' + u.name,
+        '<div class="field"><label>新密码（至少 6 位）</label><input id="mPwd" type="text" placeholder="请输入新密码" required></div>',
+        function () {
+          API.put('/api/users/' + u.id, { password: document.getElementById('mPwd').value }).then(function (res) {
+            if (!res.ok) return Portal.toast(res.error || '重置失败', 'error');
+            Portal.toast('密码已重置'); closeModal();
+          });
+        });
+    }
+
+    if (b.dataset.act === 'del') {
+      if (!confirm('确认删除用户「' + u.name + '（' + u.username + '）」？此操作不可撤销。')) return;
+      API.del('/api/users/' + u.id).then(function (res) {
+        if (!res.ok) return Portal.toast(res.error || '删除失败', 'error');
+        Portal.toast('已删除'); loadUsers();
+      });
+    }
+  });
+
+  document.getElementById('btnAddUser').addEventListener('click', function () {
+    openModal('新增用户',
+      '<div class="field"><label>姓名</label><input id="mName" placeholder="如：张三" required></div>' +
+      '<div class="field"><label>账号（3-32 位字母/数字/_.@-）</label><input id="mUser" placeholder="如：zhangsan" required></div>' +
+      '<div class="field"><label>初始密码（至少 6 位）</label><input id="mPwd" type="text" placeholder="如：konllen2026" required></div>' +
+      '<div class="field"><label>角色</label><select id="mRole">' + roleOptions('member') + '</select></div>',
+      function () {
+        API.post('/api/users', {
+          name: document.getElementById('mName').value.trim(),
+          username: document.getElementById('mUser').value.trim(),
+          password: document.getElementById('mPwd').value,
+          role: document.getElementById('mRole').value
+        }).then(function (res) {
+          if (!res.ok) return Portal.toast(res.error || '创建失败', 'error');
+          Portal.toast('已创建'); closeModal(); loadUsers();
+        });
+      });
+  });
+
+  document.getElementById('userSearch').addEventListener('input', renderUsers);
+
+  function loadUsers() {
+    return API.get('/api/users').then(function (res) {
+      if (!res.ok) { Portal.toast(res.error || '加载失败', 'error'); return; }
+      USERS = res.users || [];
+      renderUsers();
+    });
+  }
+
+  /* ══ 角色权限 ══════════════════════════════ */
+  function renderRoles() {
+    document.getElementById('roleCards').innerHTML = Object.keys(ROLES).map(function (k) {
+      var r = ROLES[k];
+      var cnt = r.pages.indexOf('*') !== -1 ? '全部' : r.pages.length;
+      return '<div class="card role-card" style="border-left:3px solid ' + r.color + '">' +
+        '<div class="role-head"><h3>' + esc(r.name) + '</h3>' +
+        (r.builtin ? '<span class="tag tag-green">内置</span>' : '') + '</div>' +
+        '<p class="muted" style="font-size:13px;min-height:38px">' + esc(r.desc || '') + '</p>' +
+        '<div class="role-meta"><span>可访问页面：<b>' + cnt + '</b></span>' +
+        '<span>登录后进入：<code>' + esc(r.landing) + '</code></span></div>' +
+        '<div class="role-pages">' + (r.pages.indexOf('*') !== -1
+            ? '<span class="tag tag-green">* 全部页面</span>'
+            : r.pages.map(function (p) {
+                var meta = PAGES.find(function (x) { return x.path === p; });
+                return '<span class="tag tag-blue">' + esc(meta ? meta.label : p) + '</span>';
+              }).join('')) + '</div>' +
+        '<button class="btn btn-ghost btn-sm" data-role="' + k + '"' + (r.builtin ? ' disabled' : '') + '>' +
+          (r.builtin ? '不可修改' : '编辑权限') + '</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  document.getElementById('roleCards').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-role]');
+    if (!b || b.disabled) return;
+    var k = b.dataset.role;
+    var r = ROLES[k];
+
+    var groups = {};
+    PAGES.forEach(function (p) { (groups[p.group] = groups[p.group] || []).push(p); });
+
+    var body = '<div class="field"><label>角色名称</label><input id="rName" value="' + esc(r.name) + '"></div>' +
+      '<div class="field"><label>说明</label><input id="rDesc" value="' + esc(r.desc || '') + '"></div>' +
+      '<div class="field"><label>登录后进入</label><select id="rLanding">' +
+        PAGES.map(function (p) { return '<option value="' + p.path + '"' + (p.path === r.landing ? ' selected' : '') + '>' + esc(p.label) + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div class="field"><label>可访问页面</label>';
+    Object.keys(groups).forEach(function (g) {
+      body += '<div class="perm-group"><div class="perm-group-title">' + esc(g) + '</div>' +
+        groups[g].map(function (p) {
+          var on = r.pages.indexOf(p.path) !== -1;
+          return '<label class="perm-item"><input type="checkbox" value="' + p.path + '"' + (on ? ' checked' : '') + '> ' + esc(p.label) + '</label>';
+        }).join('') + '</div>';
+    });
+    body += '</div>';
+
+    openModal('编辑角色权限 · ' + r.name, body, function () {
+      var checked = [].slice.call(document.querySelectorAll('#modalBody input[type=checkbox]:checked')).map(function (x) { return x.value; });
+      API.put('/api/roles/' + k, {
+        name: document.getElementById('rName').value.trim(),
+        desc: document.getElementById('rDesc').value.trim(),
+        landing: document.getElementById('rLanding').value,
+        pages: checked
+      }).then(function (res) {
+        if (!res.ok) return Portal.toast(res.error || '保存失败', 'error');
+        Portal.toast('权限已更新'); closeModal(); loadRoles();
+      });
+    });
+  });
+
+  function loadRoles() {
+    return API.get('/api/roles').then(function (res) {
+      if (!res.ok) { Portal.toast(res.error || '加载失败', 'error'); return; }
+      ROLES = res.roles || {};
+      PAGES = res.pages || [];
+      renderRoles();
+    });
+  }
+
+  /* ══ 数据同步 ══════════════════════════════ */
+  function loadData() {
+    return API.get('/api/data/daily').then(function (res) {
+      var tb = document.getElementById('dataRows');
+      if (!res.ok || res.empty) {
+        document.getElementById('fetchMeta').textContent = '';
+        document.getElementById('dataStats').innerHTML = '';
+        tb.innerHTML = '<tr><td colspan="4" class="loading">尚未抓取数据，点击上方按钮手动抓取</td></tr>';
+        return;
+      }
+      var d = res.data;
+      document.getElementById('fetchMeta').textContent = '最近同步：' + d.fetchedAtLocal;
+      document.getElementById('dataStats').innerHTML = [
+        { label: '数据表', value: d.tableCount },
+        { label: '有效表', value: d.okTables },
+        { label: '总行数', value: d.totalRows },
+        { label: '每表上限', value: d.limitPerTable }
+      ].map(function (x) {
+        return '<div class="stat"><div class="label">' + x.label + '</div><div class="value">' + x.value + '</div></div>';
+      }).join('');
+      tb.innerHTML = d.tables.map(function (t) {
+        return '<tr><td><strong>' + esc(t.name) + '</strong></td><td><span class="tag tag-blue">' + esc(t.group) + '</span></td>' +
+               '<td class="mono">' + t.fieldCount + '</td><td class="mono">' + t.rowCount + '</td></tr>';
+      }).join('');
+    });
+  }
+
+  document.getElementById('btnRefresh').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true; btn.textContent = '抓取中…（约 10-60 秒）';
+    API.post('/api/data/refresh', {}).then(function (res) {
+      btn.disabled = false; btn.textContent = '立即抓取最新数据';
+      if (!res.ok) return Portal.toast(res.error || '抓取失败', 'error');
+      Portal.toast('抓取完成：' + res.totalRows + ' 行');
+      loadData();
+    });
+  });
+
+  /* ══ 登录日志 ══════════════════════════════ */
+  function loadLogs() {
+    return API.get('/api/logs').then(function (res) {
+      var tb = document.getElementById('logRows');
+      if (!res.ok) { tb.innerHTML = '<tr><td colspan="7" class="loading">加载失败</td></tr>'; return; }
+      var logs = res.logs || [];
+      document.getElementById('logMeta').textContent = '共 ' + logs.length + ' 条记录（保留最近 300 条）';
+      if (!logs.length) { tb.innerHTML = '<tr><td colspan="7" class="loading">暂无记录</td></tr>'; return; }
+      tb.innerHTML = logs.map(function (l) {
+        return '<tr>' +
+          '<td class="mono muted">' + esc(Portal.fmtTime(l.time)) + '</td>' +
+          '<td class="mono">' + esc(l.username) + '</td>' +
+          '<td>' + esc(l.name) + '</td>' +
+          '<td>' + esc(l.role) + '</td>' +
+          '<td>' + (l.ok ? '<span class="tag tag-green">成功</span>' : '<span class="tag tag-pink">失败</span>') + '</td>' +
+          '<td class="muted">' + esc(l.reason || '') + '</td>' +
+          '<td class="mono muted">' + esc(l.ip || '-') + '</td>' +
+        '</tr>';
+      }).join('');
+    });
+  }
+
+  document.getElementById('btnClearLogs').addEventListener('click', function () {
+    if (!confirm('确认清空全部登录日志？')) return;
+    API.del('/api/logs').then(function (res) {
+      if (!res.ok) return Portal.toast(res.error || '清空失败', 'error');
+      Portal.toast('已清空'); loadLogs();
+    });
+  });
+
+  /* ══ 启动 ══════════════════════════════════ */
+  Portal.boot({ title: '团队门户', roles: ['admin'] }).then(function (u) {
+    if (!u) return;
+    loadRoles().then(loadUsers);
+    loadData();
+    loadLogs();
+  });
+})();
+</script>
+
+</body>
+</html>

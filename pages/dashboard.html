@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title" id="welcome">工作台</h1>
+  <p class="page-sub" id="roleDesc"></p>
+
+  <div class="notice">
+    <strong>当前身份：</strong><span id="roleInfo"></span>
+    <span id="editBadge"></span>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <h2 class="section-h">可用模块</h2>
+  <div class="grid" id="modules"></div>
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  var ICONS = {
+    '/pages/dashboard.html': '🏠', '/pages/data.html': '📈', '/pages/metrics.html': '📊',
+    '/pages/members.html': '👥', '/pages/content.html': '📝', '/pages/careers.html': '🚀',
+    '/pages/admin.html': '⚙️', '/pages/settings.html': '🔧', '/pages/logs.html': '📋'
+  };
+  var DESC = {
+    '/pages/dashboard.html': '总览与快捷入口',
+    '/pages/data.html': '钉钉日报真实业务数据',
+    '/pages/metrics.html': '核心指标与趋势分析',
+    '/pages/members.html': '团队成员与权限分配',
+    '/pages/content.html': '内容创建与维护',
+    '/pages/careers.html': '在招岗位与内推',
+    '/pages/admin.html': '用户、角色与数据同步',
+    '/pages/settings.html': '参数配置与安全策略',
+    '/pages/logs.html': '登录审计记录'
+  };
+
+  Portal.boot({ title: '团队门户' }).then(function (u) {
+    if (!u) return;
+
+    document.getElementById('welcome').textContent = '你好，' + u.name;
+    document.getElementById('roleInfo').textContent = (u.roleName || u.role) + '（' + u.role + '）';
+    document.getElementById('editBadge').innerHTML =
+      u.pages.indexOf('*') !== -1 ? ' <span class="tag tag-green">全站权限</span>'
+                                  : ' <span class="tag tag-blue">授权 ' + u.pages.length + ' 个页面</span>';
+
+    var roleMeta = { admin: '系统管理员，拥有全部页面与用户/权限管理权限。',
+                     team_leader: '团队主管，可查看日报数据、数据指标与成员信息。',
+                     member: '团队成员，可查看工作台、日报数据与内容模块。' };
+    document.getElementById('roleDesc').textContent = roleMeta[u.role] || '已登录。';
+
+    // 模块卡：按实际权限过滤
+    Portal.loadConfig().then(function (cfg) {
+      var mine = cfg.nav.filter(function (n) { return Auth.canAccess(n.path) && n.path !== '/pages/dashboard.html'; });
+      var html = mine.map(function (n) {
+        return '<a href="' + n.path.replace(/^\//, '') + '" class="module-card">' +
+                 '<div class="module-icon">' + (ICONS[n.path] || '📄') + '</div>' +
+                 '<h3>' + Portal.esc(n.label) + '</h3>' +
+                 '<p>' + (DESC[n.path] || '') + '</p>' +
+                 '<span class="tag ' + (u.color === '#00c8ff' ? 'tag-blue' : u.color === '#ff5ec9' ? 'tag-pink' : 'tag-green') + '">进入 →</span>' +
+               '</a>';
+      }).join('');
+      document.getElementById('modules').innerHTML = html || '<div class="empty"><div class="icon">🔒</div><div>暂无可用模块</div></div>';
+
+      var hidden = cfg.nav.filter(function (n) { return !Auth.canAccess(n.path); });
+      if (hidden.length) {
+        document.getElementById('modules').insertAdjacentHTML('afterend',
+          '<div class="empty" style="margin-top:20px"><div class="icon">🔒</div>' +
+          '<div>' + hidden.length + ' 个模块需要更高权限（' + hidden.map(function (h) { return Portal.esc(h.label); }).join('、') + '）</div></div>');
+      }
+    });
+
+    // 统计卡：接真实接口
+    API.get('/api/health').then(function (h) {
+      var cards = [
+        { label: '我的权限页', value: u.pages.indexOf('*') !== -1 ? '全部' : u.pages.length },
+        { label: '日报数据行', value: h.ok ? (h.dataFetchedAt ? '已同步' : '待抓取') : '—' },
+        { label: '系统用户数', value: h.ok ? h.users : '—' },
+        { label: '会话状态', value: '有效' }
+      ];
+      document.getElementById('stats').innerHTML = cards.map(function (x) {
+        return '<div class="stat"><div class="label">' + x.label + '</div><div class="value">' + x.value + '</div></div>';
+      }).join('');
+    });
+
+    // 数据卡：显示最近同步时间
+    API.get('/api/data/daily').then(function (d) {
+      var el = document.getElementById('stats');
+      if (!d.ok || d.empty) return;
+      el.insertAdjacentHTML('beforeend',
+        '<div class="stat" style="grid-column:1/-1"><div class="label">最近数据同步</div>' +
+        '<div class="value" style="font-size:18px">' + Portal.esc(d.data.fetchedAtLocal) +
+        ' · ' + d.data.tableCount + ' 张表 / ' + d.data.totalRows + ' 行</div></div>');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

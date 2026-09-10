@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容管理 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">内容管理</h1>
+  <p class="page-sub">内容创建 · 维护 · 发布状态</p>
+
+  <div class="notice">
+    <strong>权限要求：</strong>管理员、团队成员
+  </div>
+
+  <div class="notice">
+    <strong>权限提示：</strong>管理员可创建与编辑；团队成员为只读视图。
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>标题</th><th>类型</th><th>更新时间</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="contentTable"></tbody>
+    </table>
+  </div>
+
+
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  Portal.boot({ title: '团队门户' }).then(function (u) {
+    if (!u) return;
+    var canEdit = u.role === 'admin';
+    var rows = [
+      { t: '示例内容条目一', k: '文档', d: '—', st: 'tag-green', s: '已发布' },
+      { t: '示例内容条目二', k: '文档', d: '—', st: 'tag-blue',  s: '草稿' },
+      { t: '示例内容条目三', k: '图片', d: '—', st: 'tag-green', s: '已发布' }
+    ];
+    var tb = document.getElementById('contentTable');
+    rows.forEach(function (r) {
+      tb.insertAdjacentHTML('beforeend',
+        '<tr>' +
+          '<td>' + Portal.esc(r.t) + '</td>' +
+          '<td>' + r.k + '</td>' +
+          '<td>' + r.d + '</td>' +
+          '<td><span class="tag ' + r.st + '">' + r.s + '</span></td>' +
+          '<td>' + (canEdit
+              ? '<button class="btn btn-ghost btn-sm" onclick="Portal.toast(\'示例：编辑功能待接入\')">编辑</button>'
+              : '<span class="muted">只读</span>') + '</td>' +
+        '</tr>');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

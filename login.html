@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card">
+
+    <div class="login-head">
+      <div class="mark">🔐</div>
+      <h1>团队门户</h1>
+      <p>请输入账号与密码登录</p>
+    </div>
+
+    <div id="alert" class="alert alert-error"></div>
+
+    <form id="loginForm" autocomplete="off">
+      <div class="field">
+        <label for="username">账号</label>
+        <input type="text" id="username" placeholder="请输入账号" autocomplete="username" required>
+      </div>
+
+      <div class="field">
+        <label for="password">密码</label>
+        <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" required>
+        <div class="hint">忘记密码请联系管理员重置</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block" id="submitBtn">登录</button>
+    </form>
+
+    <div class="login-foot">
+      会话有效期 8 小时 · 权限由管理员在后台配置
+    </div>
+
+  </div>
+</div>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script>
+(function () {
+  'use strict';
+
+  // 已登录则直接进入
+  if (API.getToken()) {
+    Auth.init().then(function (u) {
+      if (u) window.location.replace(Site.url(u.landing || '/pages/dashboard.html'));
+    });
+  }
+
+  var form = document.getElementById('loginForm');
+  var alertBox = document.getElementById('alert');
+  var btn = document.getElementById('submitBtn');
+  var userEl = document.getElementById('username');
+  var pwdEl = document.getElementById('password');
+
+  function showError(msg) {
+    alertBox.textContent = msg;
+    alertBox.className = 'alert alert-error show';
+  }
+  function showOk(msg) {
+    alertBox.textContent = msg;
+    alertBox.className = 'alert alert-ok show';
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    alertBox.className = 'alert';
+
+    var username = userEl.value.trim();
+    var pwd = pwdEl.value;
+
+    if (!username) { showError('请输入账号'); userEl.focus(); return; }
+    if (!pwd) { showError('请输入密码'); pwdEl.focus(); return; }
+
+    btn.disabled = true;
+    btn.textContent = '验证中…';
+
+    Auth.login(username, pwd).then(function (res) {
+      if (res.ok) {
+        showOk('登录成功，正在进入…');
+        var next = new URLSearchParams(window.location.search).get('next');
+        var target = (next && Auth.canAccess(next)) ? next : Site.url(res.user.landing || '/pages/dashboard.html');
+        setTimeout(function () { window.location.href = target; }, 300);
+      } else {
+        showError(res.error || '登录失败');
+        btn.disabled = false;
+        btn.textContent = '登录';
+        pwdEl.value = '';
+        pwdEl.focus();
+      }
+    });
+  });
+
+  userEl.focus();
+})();
+</script>
+
+</body>
+</html>

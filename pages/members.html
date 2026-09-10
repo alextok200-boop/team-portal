@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成员管理 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">成员管理</h1>
+  <p class="page-sub">团队角色 · 权限分配 · 访问范围</p>
+
+  <div class="notice">
+    <strong>权限要求：</strong>管理员、团队主管
+  </div>
+
+  <div class="notice">
+    <strong>说明：</strong>成员与权限的「单一事实源」在服务端 <code>data/roles.json</code>，
+    由管理员在「管理后台 → 角色权限」中可视化配置，下表实时反映当前配置。
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>角色</th><th>标识</th><th>可访问页面</th><th>说明</th><th>落地页</th></tr></thead>
+      <tbody id="roleTable"><tr><td colspan="5" class="loading">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  Portal.boot({ title: '团队门户', roles: ['admin', 'team_leader'] }).then(function (u) {
+    if (!u) return;
+    API.get('/api/config').then(function (res) {
+      var tbody = document.getElementById('roleTable');
+      var roles = (res.ok && res.roles) || {};
+      var keys = Object.keys(roles);
+      if (!keys.length) { tbody.innerHTML = '<tr><td colspan="5" class="loading">暂无角色配置</td></tr>'; return; }
+      tbody.innerHTML = keys.map(function (key) {
+        var r = roles[key];
+        return '<tr>' +
+          '<td><span class="tag" style="background:' + r.color + '22;color:' + r.color + ';border:1px solid ' + r.color + '55">' + Portal.esc(r.name) + '</span></td>' +
+          '<td class="mono">' + Portal.esc(key) + '</td>' +
+          '<td>' + (r.pageCount === 1 && r.desc.indexOf('全部') !== -1 ? '<span class="tag tag-green">全部</span>' : r.pageCount + ' 个页面') + '</td>' +
+          '<td class="muted">' + Portal.esc(r.desc || '') + '</td>' +
+          '<td class="mono">' + Portal.esc(r.landing || '—') + '</td>' +
+        '</tr>';
+      }).join('');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

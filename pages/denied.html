@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>无权访问 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <div class="empty" style="padding-top:80px">
+    <div class="icon" style="font-size:56px">🔒</div>
+    <h1 style="font-size:24px;color:var(--text);margin-bottom:10px">无权访问此页面</h1>
+    <p id="detail" style="margin-bottom:24px"></p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <a href="pages/dashboard.html" class="btn btn-primary">返回我的工作台</a>
+      <button class="btn btn-ghost" onclick="Auth.logout()">切换账号</button>
+    </div>
+  </div>
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  var from = new URLSearchParams(window.location.search).get('from') || '该页面';
+  var detail = document.getElementById('detail');
+
+  if (!API.getToken()) {
+    detail.innerHTML = '请先登录后再试';
+    return;
+  }
+
+  Auth.init().then(function (u) {
+    if (!u) { detail.innerHTML = '登录状态已失效，请重新登录'; return; }
+    Portal.loadConfig().then(function (cfg) { Portal.renderNav(u, cfg.nav, '团队门户'); });
+    detail.innerHTML =
+      '当前身份：<strong style="color:var(--neon-green)">' + Portal.esc(u.roleName || u.role) + '</strong><br>' +
+      '试图访问：<code>' + Portal.esc(from) + '</code><br>' +
+      '<span class="muted" style="font-size:13px">如需访问请联系管理员提升权限</span>';
+  });
+})();
+</script>
+
+</body>
+</html>

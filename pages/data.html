@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日报数据 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">日报数据</h1>
+  <p class="page-sub" id="subtitle">钉钉 AI 表格真实业务数据</p>
+
+  <div class="notice" id="sourceBox" style="display:none">
+    <strong>数据源：</strong><span id="srcName"></span>
+    <span id="srcTime" style="margin-left:12px"></span>
+  </div>
+
+  <div id="content"></div>
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = Portal.esc;
+  var DATA = null;
+  var activeKey = null;
+
+  /* 需要隐藏的内部/技术列 */
+  var HIDE_COLS = ['父记录', '备注'];
+
+  Portal.boot({ title: '团队门户' }).then(function (u) {
+    if (!u) return;
+
+    API.get('/api/data/daily').then(function (res) {
+      if (!res.ok || res.empty) {
+        document.getElementById('content').innerHTML =
+          '<div class="empty"><div class="icon">📭</div>' +
+          '<div>' + esc(res.message || '暂无数据') + '</div></div>';
+        return;
+      }
+      DATA = res.data;
+      document.getElementById('subtitle').textContent =
+        DATA.source + ' · ' + DATA.tableCount + ' 张表 / ' + DATA.totalRows + ' 行';
+      document.getElementById('sourceBox').style.display = '';
+      document.getElementById('srcName').textContent = DATA.source;
+      document.getElementById('srcTime').textContent = '最近同步：' + DATA.fetchedAtLocal;
+
+      // 默认选中行数最多的表
+      var best = DATA.tables.slice().sort(function (a, b) { return b.rowCount - a.rowCount; })[0];
+      activeKey = best ? best.key : null;
+      renderTabs();
+      renderTable();
+    });
+  });
+
+  function renderTabs() {
+    var html = '<div class="tabs" id="dataTabs">' + DATA.tables.map(function (t) {
+      return '<button class="tab' + (t.key === activeKey ? ' active' : '') + '" data-key="' + t.key + '">' +
+        esc(t.name.replace(/^\d+\./, '')) + ' <span class="tab-badge">' + t.rowCount + '</span></button>';
+    }).join('') + '</div>';
+    document.getElementById('content').innerHTML = html + '<div id="tableArea"></div>';
+    document.getElementById('dataTabs').addEventListener('click', function (e) {
+      var b = e.target.closest('.tab');
+      if (!b) return;
+      activeKey = b.dataset.key;
+      renderTabs();
+      renderTable();
+    });
+  }
+
+  function renderTable() {
+    var t = DATA.tables.find(function (x) { return x.key === activeKey; });
+    var area = document.getElementById('tableArea');
+    if (!t) { area.innerHTML = ''; return; }
+
+    if (!t.rows.length) {
+      area.innerHTML = '<div class="empty"><div class="icon">📭</div><div>该表暂无数据行</div></div>';
+      return;
+    }
+
+    // 列：优先按 columns 顺序，剔除隐藏列；只保留至少一行有值的列
+    var cols = (t.columns || Object.keys(t.rows[0])).filter(function (c) {
+      return HIDE_COLS.indexOf(c) === -1;
+    });
+    var used = cols.filter(function (c) {
+      return t.rows.some(function (r) { return r[c] !== undefined && r[c] !== '' && r[c] !== null; });
+    });
+    if (!used.length) used = cols.slice(0, 12);
+
+    var head = '<tr>' + used.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr>';
+    var body = t.rows.slice(0, 200).map(function (r) {
+      return '<tr>' + used.map(function (c) {
+        var v = r[c];
+        if (v === undefined || v === null || v === '') return '<td class="muted">—</td>';
+        var s = String(v);
+        // 数字右对齐 + 千分位
+        if (/^-?\d+(\.\d+)?$/.test(s)) {
+          var n = Number(s);
+          var cls = n < 0 ? 'num neg' : 'num';
+          return '<td class="' + cls + '">' + esc(Portal.fmtNum(n)) + '</td>';
+        }
+        return '<td>' + esc(s.length > 60 ? s.slice(0, 60) + '…' : s) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+
+    area.innerHTML =
+      '<p class="muted" style="margin:14px 0 10px">' +
+        esc(t.name) + ' · 显示 ' + Math.min(t.rows.length, 200) + ' / ' + t.rowCount + ' 行 · ' + used.length + ' 列' +
+        (t.rowCount > 200 ? '（最多显示 200 行）' : '') +
+      '</p>' +
+      '<div class="table-wrap"><table><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+  }
+})();
+</script>
+
+</body>
+</html>

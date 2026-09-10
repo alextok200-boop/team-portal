@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统设置 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">系统设置</h1>
+  <p class="page-sub">参数配置 · 会话策略 · 安全</p>
+
+  <div class="notice">
+    <strong>权限要求：</strong>仅管理员
+  </div>
+
+  <div class="notice">
+    <strong>说明：</strong>以下为服务端当前生效的配置快照（实时读取）。
+    用户与角色权限请在「<a href="pages/admin.html" style="color:var(--neon-blue)">管理后台</a>」中配置。
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>配置项</th><th>当前值</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>会话有效期</td><td><code id="ttl">—</code></td><td>超时自动登出（服务端签名令牌）</td></tr>
+        <tr><td>会话存储</td><td><code>localStorage + HMAC 令牌</code></td><td>服务重启不掉线</td></tr>
+        <tr><td>角色数量</td><td><code id="roleCount">—</code></td><td>来自 data/roles.json</td></tr>
+        <tr><td>系统用户数</td><td><code id="userCount">—</code></td><td>来自 data/users.json</td></tr>
+        <tr><td>登录日志上限</td><td><code>300 条</code></td><td>服务端 data/logs.json</td></tr>
+        <tr><td>Node 版本</td><td><code id="nodeVer">—</code></td><td>运行环境</td></tr>
+        <tr><td>服务端口</td><td><code id="port">—</code></td><td>见 server.js</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="section-h" style="margin-top:32px">数据源</h2>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><th style="width:180px">数据来源</th><td id="srcName">—</td></tr>
+        <tr><th>最近同步</th><td id="srcTime">—</td></tr>
+        <tr><th>自动抓取</th><td>每日 11:05（需本机 dws 登录态）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  Portal.boot({ title: '团队门户', roles: ['admin'] }).then(function (u) {
+    if (!u) return;
+    document.getElementById('port').textContent = window.location.port || '80';
+
+    API.get('/api/health').then(function (h) {
+      if (!h.ok) return;
+      document.getElementById('userCount').textContent = h.users + ' 个';
+      document.getElementById('roleCount').textContent = h.roles + ' 个';
+      document.getElementById('nodeVer').textContent = h.node;
+      document.getElementById('ttl').textContent = '8 小时';
+    });
+
+    API.get('/api/data/daily').then(function (d) {
+      if (!d.ok || d.empty) {
+        document.getElementById('srcName').textContent = '尚未抓取';
+        document.getElementById('srcTime').textContent = '—';
+        return;
+      }
+      document.getElementById('srcName').textContent = d.data.source;
+      document.getElementById('srcTime').textContent = d.data.fetchedAtLocal + '（' + d.data.totalRows + ' 行）';
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

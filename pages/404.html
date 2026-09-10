@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>页面不存在 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.0.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <div class="empty" style="padding-top:80px">
+    <div class="icon" style="font-size:56px">🧭</div>
+    <h1 style="font-size:24px;color:var(--text);margin-bottom:10px">页面不存在</h1>
+    <p style="margin-bottom:24px">请检查地址是否正确，或返回工作台</p>
+    <a href="pages/dashboard.html" class="btn btn-primary">返回工作台</a>
+  </div>
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  // 已登录则显示顶栏，未登录只显示返回入口
+  if (!API.getToken()) return;
+  Auth.init().then(function (u) {
+    if (!u) return;
+    Portal.loadConfig().then(function (cfg) { Portal.renderNav(u, cfg.nav, '团队门户'); });
+  });
+})();
+</script>
+
+</body>
+</html>
