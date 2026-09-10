@@ -93,30 +93,34 @@
       document.getElementById('srcName').textContent = D.source;
       document.getElementById('srcTime').textContent = '最近同步：' + D.fetchedAtLocal;
 
-      /* ── 核心指标：日报总览最新有 GMV 的记录 ── */
-      var ov = byKey('overview');
-      var ovRows = (ov && ov.rows) || [];
-      var withGmv = ovRows.filter(function (r) { return Number(r['全公司GMV']) > 0; });
-      var latest = withGmv.length ? withGmv[withGmv.length - 1] : (ovRows.length ? ovRows[ovRows.length - 1] : null);
+      /* ── 核心指标：从分店铺日报聚合（日报总览的 GMV 是公式字段，OpenAPI 拿不到）── */
+      var domT = byKey('domestic');
+      var cbT = byKey('crossborder');
+      var agg = { domGmv: 0, domOrders: 0, domUv: 0, crossGmv: 0, crossOrders: 0, crossUv: 0, fee: 0 };
+      [domT, cbT].forEach(function (t) {
+        (t && t.rows || []).forEach(function (r) {
+          var gmv = Number(r['全店GMV']) || 0;
+          var orders = Number(r['订单量']) || 0;
+          var uv = Number(r['UV']) || 0;
+          agg.fee += Number(r['推广费']) || 0;
+          if (t.key === 'domestic') { agg.domGmv += gmv; agg.domOrders += orders; agg.domUv += uv; }
+          else { agg.crossGmv += gmv; agg.crossOrders += orders; agg.crossUv += uv; }
+        });
+      });
 
-      if (latest) {
-        var cards = [
-          { label: '全公司 GMV', value: fmtMoney(latest['全公司GMV']), color: '' },
-          { label: '全公司订单量', value: fmtInt(latest['全公司订单量']) },
-          { label: '跨境 GMV', value: fmtMoney(latest['跨境GMV']) },
-          { label: '国内 GMV', value: fmtMoney(latest['全店GMV']) },
-          { label: '全公司推广费', value: fmtMoney(latest['全公司推广费']) },
-          { label: 'UV（国内）', value: fmtInt(latest['UV']) }
-        ];
-        document.getElementById('coreStats').innerHTML = cards.map(function (c) {
-          return '<a class="stat stat-link" href="tables.html?table=overview" title="点击查看日报总览明细">' +
-                 '<div class="label">' + c.label +
-                 (latest['日期'] ? ' · ' + esc(latest['日期']) : '') + '</div>' +
-                 '<div class="value">' + c.value + '</div></a>';
-        }).join('');
-      } else {
-        document.getElementById('coreStats').innerHTML = '<div class="empty"><div class="icon">📭</div><div>日报总览暂无数据</div></div>';
-      }
+      var cards = [
+        { label: '全公司 GMV（累计）', value: fmtMoney(agg.domGmv + agg.crossGmv) },
+        { label: '全公司订单量（累计）', value: fmtInt(agg.domOrders + agg.crossOrders) },
+        { label: '跨境 GMV（累计）', value: fmtMoney(agg.crossGmv) },
+        { label: '国内 GMV（累计）', value: fmtMoney(agg.domGmv) },
+        { label: '全公司推广费（累计）', value: fmtMoney(agg.fee) },
+        { label: 'UV（累计）', value: fmtInt(agg.domUv + agg.crossUv) }
+      ];
+      document.getElementById('coreStats').innerHTML = cards.map(function (c) {
+        return '<a class="stat stat-link" href="tables.html?table=domestic" title="点击查看分店铺明细">' +
+               '<div class="label">' + c.label + '</div>' +
+               '<div class="value">' + c.value + '</div></a>';
+      }).join('');
 
       /* ── 分店铺 GMV 聚合（国内 + 跨境）────────── */
       var stores = {};

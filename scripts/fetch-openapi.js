@@ -33,6 +33,7 @@ const BASE_ID = process.env.DINGTALK_BASE_ID || 'OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw
 
 const SOURCE_NAME = '电商营销备战-日报追踪表';
 const OUT_FILE = path.join(__dirname, '..', 'data', 'daily.json');
+const MAX_ROWS_PER_TABLE = 200;   // 每表最多取 200 行（避免数据文件过大）
 
 /* ── 抓取的表（key → 表 ID / 中文名 / 分组）──────────────── */
 const TABLES = [
@@ -89,23 +90,24 @@ function cellValue(v) {
 /* ── 单表抓取 ───────────────────────────────────────────── */
 async function fetchTable(token, t) {
   // 1. 字段列表（fieldId → fieldName）
-  let nameOf = {};
+  const nameOf = {};
+  const fieldNames = [];
   try {
     const fr = await http('GET',
       API + '/notable/bases/' + BASE_ID + '/sheets/' + t.id + '/fields?operatorId=' + OPERATOR_ID,
       undefined, token);
     const fields = (fr && fr.value) || [];
-    fields.forEach(function (f) { if (f && f.id) nameOf[f.id] = f.name; });
+    fields.forEach(function (f) { if (f && f.id) { nameOf[f.id] = f.name; fieldNames.push(f.name); } });
   } catch (e) {
     console.warn('  [警告] 字段读取失败 ' + t.name + '：' + e.message.split('\n')[0]);
   }
 
-  // 2. 记录列表（分页）
+  // 2. 记录列表（分页，calcFields 拉公式字段，行数上限）
   const rows = [];
   let nextToken = '';
   let guard = 0;
   do {
-    const body = { maxResults: 100 };
+    const body = { maxResults: 100, calcFields: true };
     if (nextToken) body.nextToken = nextToken;
     const rr = await http('POST',
       API + '/notable/bases/' + BASE_ID + '/sheets/' + t.id + '/records/list?operatorId=' + OPERATOR_ID,
@@ -123,13 +125,21 @@ async function fetchTable(token, t) {
       rows.push(o);
     });
     nextToken = (rr && rr.nextToken) || '';
-    if (++guard > 50) break; // 安全上限
+    if (++guard > 50) break;
+    if (rows.length >= MAX_ROWS_PER_TABLE) break; // 行数上限，避免数据过大
   } while (nextToken);
+
+  // 3. columns：基础字段 + 记录里出现的额外字段（公式/查找字段）
+  const seen = {};
+  const columns = fieldNames.slice();
+  rows.forEach(function (r) {
+    Object.keys(r).forEach(function (k) { if (!seen[k]) { seen[k] = true; if (fieldNames.indexOf(k) === -1) columns.push(k); } });
+  });
 
   return {
     key: t.key, name: t.name, group: t.group, tableId: t.id,
-    fieldCount: Object.keys(nameOf).length, rowCount: rows.length,
-    columns: Object.values(nameOf), rows: rows
+    fieldCount: columns.length, rowCount: rows.length,
+    columns: columns, rows: rows
   };
 }
 
