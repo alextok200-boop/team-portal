@@ -167,15 +167,26 @@
       /* ============ 3. 数据完整性提示 ============ */
       var dates = Object.keys(byDate).sort();
       var dropped = num(D.droppedEmptyRowsTotal);
+      /* 未出图的表：优先读快照里的 emptyTables；旧快照没这个字段时按「表内零行」兜底推导。
+         列表随抓取结果自动更新，不在前端硬编码表名。 */
+      var empties = (D.emptyTables || []).map(function (t) { return t.name; });
+      if (!empties.length && D.tables) {
+        empties = D.tables.filter(function (t) {
+          return !(t && t.rows && t.rows.length) && !t.error;
+        }).map(function (t) { return t.name; });
+      }
+      var emptyNote = empties.length
+        ? '<span class="muted">另有 <b>' + empties.length + '</b> 张表当前仅有占位行、数值字段尚未录入，故未出图：' +
+          empties.join('、') + '。</span> '
+        : '';
       document.getElementById('dataNote').innerHTML =
         '保留 <b>' + fmtInt(D.totalRows) + '</b> 条有效记录（扫描 ' + fmtInt(D.rawRowsTotal || D.totalRows) +
         ' 行' + (dropped ? '，已过滤 <b>' + fmtInt(dropped) + '</b> 行空白模板行' : '') + '）· ' +
         '分店铺明细覆盖 <b>' + dates.length + '</b> 个日期' +
         (dates.length ? '（' + dates[0] + ' – ' + dates[dates.length - 1] + '）' : '') +
         '、<b>' + storeList.length + '</b> 家店铺。' +
-        '<span class="muted">投放 / 内容 / 流量 / 供应链 / 团队 5 张表当前仅有日期占位、数值字段尚未录入，故未出图。' +
-        (D.complete === false ? ' ⚠ 本次抓取有表触及扫描上限（' + (D.truncatedTables || []).join('、') + '），数据可能不完整。' : '') +
-        '</span>';
+        emptyNote +
+        (D.complete === false ? '<span class="muted">⚠ 本次抓取有表触及扫描上限（' + (D.truncatedTables || []).join('、') + '），数据可能不完整。</span>' : '');
 
       /* ============ 4. 图① 日 GMV 趋势 ============ */
       var cTrend = mountChart('chartTrend');

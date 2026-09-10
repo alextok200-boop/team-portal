@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       row_cap:
-        description: '扫描行数上限 rawCap（留空用默认 4000，分店铺表另有 16000/24000）'
+        description: '扫描行数上限 rawCap（留空/0 用默认 20000，分店铺表另有 16000/24000）'
         required: false
         default: ''
 
@@ -24,7 +24,9 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 9 张表全量扫描约 2.4 万行 = 约 240 次分页请求，实测约 4~5 分钟；
+    # 留足余量应对表继续变长（默认 rawCap 已提到 20000）。
+    timeout-minutes: 20
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4

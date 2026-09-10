@@ -12,6 +12,12 @@
       "Could not parse object"。这里用 API 返回的 tree/parent/author/时间/message
       在本地重算 commit 对象并落盘，SHA 与远端逐位相同 —— 于是 git reset 可用。
 
+      补齐是**按需**的：从目标 commit 逐级上溯，缺哪个 commit/blob/tree 就取哪个，
+      直到整条链在本地完整。不做整仓下载。
+
+⚠️ 每次运行都会走一遍链校验（即使目标 commit 已存在），因为「目标在、父提交缺」
+   的断链会让 `git log` 静默空输出。已在本地完整的部分只读本地对象，几乎零成本。
+
 依赖：仅标准库 + api.github.com；token 从系统凭据管理器（git credential）读取。
 """
 from __future__ import print_function
@@ -200,6 +206,49 @@ def rebuild_commit(root, d, sha, token, stats):
     raise SystemExit("重建失败：穷举时区/换行后 SHA 仍不匹配（远端可能用了其它时区）")
 
 
+def local_parents(root, sha):
+    """本地对象里读父提交（不打 API）；对象不存在返回 None。"""
+    p = run(["git", "cat-file", "-p", sha], cwd=root)
+    if p.returncode != 0:
+        return None
+    return [ln.split()[1] for ln in p.stdout.splitlines() if ln.startswith("parent ")]
+
+
+def ensure_commit_chain(root, sha, token, stats, seen=None, max_commits=1000):
+    """递归补齐 commit 及其祖先，直到整条链在本地区都完整。
+
+    为什么必须补祖先：本工具生成的是 API 提交，本地原本没有该对象；
+    若只补目标 commit 而不补它的父提交，`git reset --hard <sha>` 虽能成功，
+    但历史链在此断开 —— `git log` 直接输出为空、`git pull` 也会报错。
+    （实测踩坑：补齐 a66a9e12 后 git log 无任何输出。）
+
+    ⚠️ 不能「目标已存在就整个跳过」：那样恰好漏掉「目标在、祖先缺」的断链
+    （正是上面那个场景）。所以本地已有的 commit 也继续上溯，只是不必打 API
+    —— 父提交从本地对象里读，成本极低。
+    """
+    seen = seen if seen is not None else set()
+    stack = [sha]
+    while stack:
+        if len(seen) >= max_commits:
+            raise SystemExit("上溯超过 %d 个提交，疑似历史异常，已中止" % max_commits)
+        s = stack.pop()
+        if s in seen:
+            continue
+        seen.add(s)
+        parents = local_parents(root, s)
+        if parents is not None:
+            stack.extend(parents)          # 本地已有 → 继续上溯找断点
+            continue
+        info = api_get("/repos/%s/commits/%s" % (REPO, s), token)
+        c = info["commit"]
+        meta = {"tree": c["tree"], "author": c["author"], "committer": c["committer"],
+                "message": c["message"], "parents": info.get("parents") or []}
+        rebuild_commit(root, meta, s, token, stats)
+        stats["commits"] = stats.get("commits", 0) + 1
+        for p in meta["parents"]:
+            stack.append(p["sha"])
+
+
 def main():
     global REPO
     ap = argparse.ArgumentParser()
@@ -214,19 +263,20 @@ def main():
     info = api_get("/repos/%s/commits/%s" % (args.repo, args.branch), token)
     sha = info["sha"]
 
-    if object_exists(root, sha) or args.check:
+    if args.check:
         print(sha)
         return
 
-    # 归一化：tree/author/committer/message 取自 commit 子对象，parents 取自顶层
-    c = info["commit"]
-    meta = {"tree": c["tree"], "author": c["author"], "committer": c["committer"],
-            "message": c["message"], "parents": info.get("parents") or []}
-    stats = {"blobs": 0, "trees": 0}
-    tz = rebuild_commit(root, meta, sha, token, stats)
+    # 注意：即使目标 commit 本地已存在，也要走一遍链校验 ——
+    # 「目标在、父提交缺」的断链只有逐级上溯才能发现（git log 会因此空输出）。
+    stats = {"blobs": 0, "trees": 0, "commits": 0}
+    ensure_commit_chain(root, sha, token, stats)
     print(sha)
-    print("# 已重建 commit 对象（时区 %s）· 从 API 补齐 %d 个 blob / %d 个 tree"
-          % (tz, stats["blobs"], stats["trees"]), file=sys.stderr)
+    if stats["commits"] or stats["blobs"] or stats["trees"]:
+        print("# 已重建 commit 对象链（从 API 补齐 %d commit / %d blob / %d tree）"
+              % (stats["commits"], stats["blobs"], stats["trees"]), file=sys.stderr)
+    else:
+        print("# 本地对象链已完整，无需补齐", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -49,9 +49,14 @@ const PAGE_SIZE = 100;   // 单次请求条数（接口上限 100）
      keepCap —— 每表最多「保留」多少有数据的行
    背景：日报追踪表里预建了整年的空白模板行（只有日期/星期/促销节点）。
    单一上限会让空白行挤占配额、把真数据截断 —— 200 行上限时国内表只捞到
-   24 条有效记录，而实际有 799 条。 */
-const RAW_CAP = Number(process.env.DINGTALK_RAW_CAP || 4000);
-const KEEP_CAP = Number(process.env.DINGTALK_KEEP_CAP || 8000);
+   24 条有效记录，而实际有 799 条。
+
+   默认值定到 20000 的依据（2026-09-10 实测）：9 张表里最大的两张（投放/内容）
+   各有 7938 行、且目前全是空白模板行；上限低于表长会让 truncated 恒为真、
+   误报「数据可能不完整」。上限只是天花板，表短就自然扫到表尾，不额外耗时。 */
+const posInt = (v, dflt) => (Number(v) > 0 ? Number(v) : dflt);
+const RAW_CAP = posInt(process.env.DINGTALK_RAW_CAP, 20000);
+const KEEP_CAP = posInt(process.env.DINGTALK_KEEP_CAP, 8000);
 /* 丢弃「只有结构字段、无任何数值/文本」的空白模板行（默认丢；DINGTALK_DROP_EMPTY=0 可保留） */
 const DROP_EMPTY = process.env.DINGTALK_DROP_EMPTY !== '0';
 const RETRY = 3;                 // 单请求最大尝试次数
@@ -243,13 +248,12 @@ async function fetchTable(token, t) {
 
   console.log('钉钉日报抓取 · ' + SOURCE_NAME + '（baseId=' + BASE_ID + '）');
   console.log('扫描上限 rawCap=' + RAW_CAP + '（分店铺表另有 16000/24000）· 保留上限 keepCap=' + KEEP_CAP +
-    ' · 空白模板行：' + (DROP_EMPTY ? '丢弃' : '保留') + ' · 单页 ' + PAGE_SIZE + ' 条\n');
-  const token = await getToken();
+    ' · 空白模板行：' + (DROP_EMPTY ? '丢弃' : '保留') + ' · 单页 ' + PAGE_SIZE + ' 条\n');  const token = await getToken();
   console.log('access_token 获取成功\n');
 
   const results = [];
   let totalRows = 0, okTables = 0, rawRowsTotal = 0, droppedEmptyTotal = 0;
-  const failed = [], truncatedTables = [];
+  const failed = [], truncatedTables = [], emptyTables = [];
 
   for (let i = 0; i < TABLES.length; i++) {
     const t = TABLES[i];
@@ -262,9 +266,13 @@ async function fetchTable(token, t) {
       droppedEmptyTotal += r.droppedEmptyRows;
       if (r.rowCount > 0) okTables++;
       if (r.truncated) truncatedTables.push(t.key);
+      /* 「为空」= 整表扫完（未到上限）却一条有效数据都没有。
+         这是模板表尚未录入的正常状态，与「截断」「失败」不是一回事，
+         单独记下来给看板用，避免前端硬编码表名。 */
+      if (r.rowCount === 0 && !r.truncated) emptyTables.push({ key: t.key, name: t.name });
       console.log(r.rowCount + ' 条有效（扫描 ' + r.rawRows + ' 行，丢空白 ' + r.droppedEmptyRows +
         '）/ ' + r.fieldCount + ' 字段' +
-        (r.truncated ? '  ⚠ 已到上限，可能截断' : ''));
+        (r.truncated ? '  ⚠ 已到上限，可能截断' : (r.rowCount === 0 ? '  · 整表扫完，暂无数据' : '')));
     } catch (e) {
       const msg = e.message.split('\n')[0];
       console.log('失败：' + msg);
@@ -299,6 +307,7 @@ async function fetchTable(token, t) {
     rawRowsTotal: rawRowsTotal,           // 扫描到的原始行数
     droppedEmptyRowsTotal: droppedEmptyTotal,
     truncatedTables: truncatedTables,
+    emptyTables: emptyTables,
     complete: truncatedTables.length === 0 && failed.length === 0,
     failedTables: failed,
     tables: results
