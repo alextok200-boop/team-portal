@@ -17,10 +17,11 @@
 #      （本机实测 github.com 时通时断，所以必须有这条兜底）
 #
 # 用法：
-#   bash tools/sync-local.sh            # 有未提交改动会先备份再对齐
+#   bash tools/sync-local.sh            # 对齐；工作区脏则先备份并停下（不丢东西）
 #   bash tools/sync-local.sh --check    # 只报告差多少，不动文件
+#   bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 #
-# 退出码：0 = 已对齐；1 = 环境/网络错误；2 = --check 模式下本地落后
+# 退出码：0 = 已对齐；1 = 环境/网络错误或工作区脏需确认；2 = --check 模式下本地落后
 # ============================================================
 set -uo pipefail
 
@@ -33,7 +34,13 @@ REMOTE="${REMOTE:-origin}"
 BRANCH="${BRANCH:-main}"
 BACKUP_DIR="${BACKUP_DIR:-../_backup}"
 CHECK_ONLY=0
-[ "${1:-}" = "--check" ] && CHECK_ONLY=1
+FORCE=0
+for a in "$@"; do
+  case "$a" in
+    --check) CHECK_ONLY=1 ;;
+    --force) FORCE=1 ;;
+  esac
+done
 
 # 沙箱/代理注入的 http_proxy 常让 github.com 的 CONNECT 隧道失败，先清掉
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy
@@ -111,7 +118,7 @@ if [ "$CHECK_ONLY" = "1" ]; then
   exit 0
 fi
 
-# ---------- 5) 未提交内容先备份 ----------
+# ---------- 5) 未提交内容：先备份，默认拒绝丢弃 ----------
 if [ -n "$(git status --porcelain)" ]; then
   mkdir -p "$BACKUP_DIR"
   STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -119,8 +126,17 @@ if [ -n "$(git status --porcelain)" ]; then
   if tar -czf "$BK" -C "$(dirname "$(pwd)")" "$(basename "$(pwd)")" 2>/dev/null; then
     echo "  ⚠ 本地有未提交改动，已备份 → $BK"
   else
-    echo "  ⚠ 备份失败，继续执行 —— 请自行确认本地改动已无用"
+    echo "  ⚠ 备份失败（$BK）"
   fi
+  if [ "$FORCE" != "1" ]; then
+    echo "  未提交内容如下（对齐会丢弃它们）："
+    git status --porcelain | sed 's/^/    /'
+    echo "✗ 已停下，未改动任何文件。"
+    echo "  · 要保留：先 git add/commit（或用 API 推送）再跑本脚本；"
+    echo "  · 要丢弃并对齐：加 --force 重跑。"
+    exit 1
+  fi
+  echo "  --force：丢弃上述未提交改动，继续对齐"
 fi
 
 # ---------- 6) 强制对齐 ----------

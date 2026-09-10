@@ -73,10 +73,27 @@ def object_exists(root, sha):
     return run(["git", "cat-file", "-e", sha], cwd=root).returncode == 0
 
 
+def hash_commit(root, body, write=False):
+    """把 commit 正文喂给 git hash-object。
+
+    ⚠️ 必须走 bytes + 不用 text=True：Windows 下文本模式会把 \\n 翻译成 \\r\\n，
+    悄悄改坏对象内容，导致重算出的 SHA 永远对不上（实测踩坑）。
+    """
+    args = ["git", "hash-object", "-t", "commit"] + (["-w"] if write else []) + ["--stdin"]
+    p = subprocess.run(args, cwd=root, input=body.encode("utf-8"), capture_output=True)
+    return p.stdout.decode("utf-8").strip()
+
+
 def rebuild_commit(root, d, sha):
-    """穷举时区/尾部换行组合，重算出与远端逐位相同的 commit 对象并落盘。"""
+    """穷举时区/尾部换行组合，重算出与远端逐位相同的 commit 对象并落盘。
+
+    注意 d 需要同时含「commit 子对象」和「顶层 parents」：
+      /repos/{r}/commits/{ref} 的 tree/author/committer/message 在 commit 子对象里，
+      而 parents 在**顶层** —— 这个不对称是实测踩过的坑，故由 main() 归一化后传入。
+    """
     tree = d["tree"]["sha"]
-    parent = d["parents"][0]["sha"] if d["parents"] else None
+    parents = d.get("parents") or []
+    parent = parents[0]["sha"] if parents else None
 
     for label, oid in (("tree", tree), ("parent", parent)):
         if oid and not object_exists(root, oid):
@@ -93,8 +110,11 @@ def rebuild_commit(root, d, sha):
     if not ts.isdigit():
         raise SystemExit("无法把 %s 转成时间戳" % d["author"]["date"])
 
-    # GitHub API 的 date 返回 ...Z，但 commit 对象里存的是 +0800（本机实测）
-    for tz in ("+0800", "+0000", "-0700", "-0800"):
+    # GitHub API 的 date 返回 ...Z，但 commit 对象里存的是作者本地时区（本机实测 +0800）。
+    # 不猜，直接全量枚举 —— 60 次哈希计算成本可忽略。
+    tzs = ["%+03d%02d" % (h, m)
+           for h in range(-14, 15) for m in (0, 30, 45)]
+    for tz in tzs:
         for msg in (d["message"], d["message"] + "\n"):
             body = ("tree %s\n%s"
                     "author %s <%s> %s %s\n"
@@ -103,11 +123,9 @@ def rebuild_commit(root, d, sha):
                         ("parent %s\n" % parent) if parent else "",
                         d["author"]["name"], d["author"]["email"], ts, tz,
                         d["committer"]["name"], d["committer"]["email"], ts, tz, msg))
-            out = run(["git", "hash-object", "-t", "commit", "--stdin"],
-                      cwd=root, stdin=body).stdout.strip()
+            out = hash_commit(root, body)
             if out == sha:
-                run(["git", "hash-object", "-t", "commit", "-w", "--stdin"],
-                    cwd=root, stdin=body)
+                hash_commit(root, body, write=True)
                 return tz
     raise SystemExit("重建失败：穷举时区/换行后 SHA 仍不匹配（远端可能用了其它时区）")
 
@@ -127,7 +145,12 @@ def main():
     if object_exists(root, sha) or args.check:
         print(sha)
         return
-    tz = rebuild_commit(root, info, sha)
+
+    # 归一化：tree/author/committer/message 取自 commit 子对象，parents 取自顶层
+    c = info["commit"]
+    meta = {"tree": c["tree"], "author": c["author"], "committer": c["committer"],
+            "message": c["message"], "parents": info.get("parents") or []}
+    tz = rebuild_commit(root, meta, sha)
     print(sha)
     print("# 已在本地重建 commit 对象（时区 %s）" % tz, file=sys.stderr)
 

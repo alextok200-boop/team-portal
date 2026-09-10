@@ -128,9 +128,14 @@ team-portal/
 因此：**凡做过 API 推送，或不确定本地是否落后，跑一次**
 
 ```bash
-bash tools/sync-local.sh            # 有未提交改动会自动打包备份到 ../_backup/ 再对齐
+bash tools/sync-local.sh            # 对齐；工作区有未提交改动则先备份并停下（不丢东西）
 bash tools/sync-local.sh --check    # 只报告差多少，不动文件（落后时退出码 2）
+bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 ```
+
+> 🔒 **防误删闸门**：工作区有未提交改动时，脚本会先整包备份到 `../_backup/`，
+> 然后**停下并列出**将被丢弃的文件，必须显式加 `--force` 才继续。
+> （这条闸门是踩坑换来的：早期版本直接 reset，把刚改好的文件无声冲掉了。）
 
 脚本走**双通路**，因为本机 `github.com` 时通时断：
 
@@ -160,10 +165,16 @@ bash tools/sync-local.sh --check    # 只报告差多少，不动文件（落后
 
 ## 📝 变更日志
 
+- **v1.1.1**（2026-09-10）：同步脚本加固
+  - 双通路：`git fetch` 不通时自动走 `api.github.com` 兜底（新增 `tools/fetch-remote-commit.py`，在本地重建同 SHA 的 commit 对象）
+  - 新增**防误删闸门** `--force`：工作区脏时先备份再停下，不再无声丢弃未提交改动
+  - 修掉两个隐蔽坑：`git update-ref` 在本环境静默失效（改直写兜底）；Windows 下 Python 文本模式把 `\n` 转成 `\r\n` 致重建 SHA 永不匹配（改字节流）
+  - 新增 `.gitignore`（`__pycache__`、API 推送临时产物）
 - **v1.1.0**（2026-09-10）：
-  - 新增 `tools/sync-local.sh` —— 本地仓库对齐远端 main，含受限环境下 remote-tracking ref 兜底直写；修复本地 git 与远端历史分叉（本地曾只有 1 个 commit，远端已 8 个）。
+  - 新增 `tools/sync-local.sh` —— 本地仓库对齐远端 main；修复本地 git 与远端历史分叉（本地曾只有 1 个 commit，远端已 8 个）。
   - README 补齐：业务数据看板 / 数据中心 / 钉钉自动抓取链路 / 角色权限表 / 完整目录结构。
   - **修正过时说明**：原「日报数据更新方式」仍写手工从 login-portal 拷 JSON，实际早已改为 GitHub Actions 自动抓取。
 - **静态版 v1.0.0**（2026-09-10）：由 login-portal v2.0.0 改造为纯前端静态版，
   适配 GitHub Pages 子路径部署，登录/权限/数据全部本地化。
+
 
