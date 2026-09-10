@@ -17,7 +17,7 @@ var DEFAULT_ROLES = {
   admin: {
     name: '管理员',
     color: '#00ffa3',
-    landing: '/pages/dashboard.html',
+    landing: '/pages/board.html',
     desc: '全部页面 + 用户与权限管理',
     builtin: true,
     pages: ['*']
@@ -27,10 +27,11 @@ var DEFAULT_ROLES = {
   team_leader: {
     name: '团队主管',
     color: '#00c8ff',
-    landing: '/pages/dashboard.html',
-    desc: '日报数据 + 数据指标 + 成员管理',
+    landing: '/pages/board.html',
+    desc: '业务数据看板 + 日报数据 + 数据指标 + 成员管理',
     builtin: false,
     pages: [
+      '/pages/board.html',
       '/pages/dashboard.html',
       '/pages/data.html',
       '/pages/metrics.html',
@@ -43,10 +44,11 @@ var DEFAULT_ROLES = {
   member: {
     name: '团队成员',
     color: '#ff5ec9',
-    landing: '/pages/dashboard.html',
-    desc: '工作台 + 日报数据 + 内容管理（只读）',
+    landing: '/pages/board.html',
+    desc: '业务数据看板 + 工作台 + 日报数据 + 内容管理（只读）',
     builtin: false,
     pages: [
+      '/pages/board.html',
       '/pages/dashboard.html',
       '/pages/data.html',
       '/pages/content.html',
@@ -94,15 +96,16 @@ var DEFAULT_USERS = [
 
 /* ── 页面目录（导航 + 权限勾选）──────────────── */
 var PAGE_CATALOG = [
-  { path: '/pages/dashboard.html', label: '工作台',     group: '核心' },
-  { path: '/pages/data.html',      label: '日报数据',   group: '核心' },
-  { path: '/pages/metrics.html',   label: '数据指标',   group: '数据' },
-  { path: '/pages/members.html',   label: '成员管理',   group: '数据' },
-  { path: '/pages/content.html',   label: '内容管理',   group: '内容' },
-  { path: '/pages/careers.html',   label: '加入我们',   group: '内容' },
-  { path: '/pages/admin.html',     label: '管理后台',   group: '系统' },
-  { path: '/pages/settings.html',  label: '系统设置',   group: '系统' },
-  { path: '/pages/logs.html',      label: '登录日志',   group: '系统' }
+  { path: '/pages/board.html',     label: '业务数据看板', group: '核心' },
+  { path: '/pages/dashboard.html', label: '工作台',       group: '核心' },
+  { path: '/pages/data.html',      label: '日报数据',     group: '核心' },
+  { path: '/pages/metrics.html',   label: '数据指标',     group: '数据' },
+  { path: '/pages/content.html',   label: '内容管理',     group: '内容' },
+  { path: '/pages/members.html',   label: '成员管理',     group: '数据' },
+  { path: '/pages/careers.html',   label: '加入我们',     group: '内容' },
+  { path: '/pages/admin.html',     label: '管理后台',     group: '系统' },
+  { path: '/pages/settings.html',  label: '系统设置',     group: '系统' },
+  { path: '/pages/logs.html',      label: '登录日志',     group: '系统' }
 ];
 
 /* 会话有效期（毫秒）8 小时 */

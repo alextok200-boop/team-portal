@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>业务数据看板 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.1.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">业务数据看板</h1>
+  <p class="page-sub">全店 / 跨境 / 分店铺 · 数据源：钉钉 AI 表格</p>
+
+  <div class="notice" id="srcBox" style="display:none">
+    <strong>数据源：</strong><span id="srcName"></span>
+    <span id="srcTime" style="margin-left:12px"></span>
+  </div>
+
+  <!-- 核心指标 -->
+  <h2 class="section-h">核心指标</h2>
+  <div class="stats" id="coreStats"><div class="stat"><div class="label">加载中</div><div class="value">…</div></div></div>
+
+  <!-- 分店铺 GMV 排名 -->
+  <h2 class="section-h" style="margin-top:30px">分店铺 GMV 排名</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>店铺</th><th>平台</th><th>GMV</th><th>订单量</th><th>UV</th><th>转化率</th></tr></thead>
+      <tbody id="storeRows"><tr><td colspan="7" class="loading">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 负责人业绩 -->
+  <h2 class="section-h" style="margin-top:30px">负责人业绩</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>负责人</th><th>平台</th><th>GMV</th><th>净利润</th><th>利润率</th><th>客单价</th><th>认领成单率</th></tr></thead>
+      <tbody id="perfRows"><tr><td colspan="7" class="loading">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = Portal.esc;
+
+  /* 数字格式化 */
+  function fmtMoney(v) {
+    var n = Number(v);
+    if (isNaN(n)) return '—';
+    return '¥' + n.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  }
+  function fmtInt(v) {
+    var n = Number(v);
+    if (isNaN(n)) return '—';
+    return n.toLocaleString('zh-CN');
+  }
+  function fmtPct(v) {
+    var n = Number(v);
+    if (isNaN(n)) return '—';
+    return (n * 100).toFixed(2) + '%';
+  }
+
+  function table(key) {
+    return function (t) { return t.key === key; };
+  }
+
+  Portal.boot({ title: '团队门户' }).then(function (u) {
+    if (!u) return;
+
+    API.get('/api/data/daily').then(function (res) {
+      if (!res.ok || res.empty) {
+        document.getElementById('coreStats').innerHTML =
+          '<div class="empty"><div class="icon">📭</div><div>' + esc(res.message || '暂无数据') + '</div></div>';
+        document.getElementById('storeRows').innerHTML = '<tr><td colspan="7" class="loading">暂无数据</td></tr>';
+        document.getElementById('perfRows').innerHTML = '<tr><td colspan="7" class="loading">暂无数据</td></tr>';
+        return;
+      }
+
+      var D = res.data;
+      var tables = D.tables || [];
+      var byKey = function (k) { return tables.filter(function (t) { return t.key === k; })[0]; };
+
+      document.getElementById('srcBox').style.display = '';
+      document.getElementById('srcName').textContent = D.source;
+      document.getElementById('srcTime').textContent = '最近同步：' + D.fetchedAtLocal;
+
+      /* ── 核心指标：日报总览最新有 GMV 的记录 ── */
+      var ov = byKey('overview');
+      var ovRows = (ov && ov.rows) || [];
+      var withGmv = ovRows.filter(function (r) { return Number(r['全公司GMV']) > 0; });
+      var latest = withGmv.length ? withGmv[withGmv.length - 1] : (ovRows.length ? ovRows[ovRows.length - 1] : null);
+
+      if (latest) {
+        var cards = [
+          { label: '全公司 GMV', value: fmtMoney(latest['全公司GMV']), color: '' },
+          { label: '全公司订单量', value: fmtInt(latest['全公司订单量']) },
+          { label: '跨境 GMV', value: fmtMoney(latest['跨境GMV']) },
+          { label: '国内 GMV', value: fmtMoney(latest['全店GMV']) },
+          { label: '全公司推广费', value: fmtMoney(latest['全公司推广费']) },
+          { label: 'UV（国内）', value: fmtInt(latest['UV']) }
+        ];
+        document.getElementById('coreStats').innerHTML = cards.map(function (c) {
+          return '<div class="stat"><div class="label">' + c.label +
+                 (latest['日期'] ? ' · ' + esc(latest['日期']) : '') + '</div>' +
+                 '<div class="value">' + c.value + '</div></div>';
+        }).join('');
+      } else {
+        document.getElementById('coreStats').innerHTML = '<div class="empty"><div class="icon">📭</div><div>日报总览暂无数据</div></div>';
+      }
+
+      /* ── 分店铺 GMV 聚合（国内 + 跨境）────────── */
+      var stores = {};
+      ['domestic', 'crossborder'].forEach(function (key) {
+        var t = byKey(key);
+        (t && t.rows || []).forEach(function (r) {
+          var name = r['店铺名'];
+          var gmv = Number(r['全店GMV']) || 0;
+          if (!name || gmv <= 0) return;
+          if (!stores[name]) stores[name] = { name: name, platform: r['平台'] || '', gmv: 0, orders: 0, uv: 0, conv: null };
+          stores[name].gmv += gmv;
+          stores[name].orders += Number(r['订单量']) || 0;
+          stores[name].uv += Number(r['UV']) || 0;
+          if (r['转化率'] != null && r['转化率'] !== '') stores[name].conv = r['转化率'];
+        });
+      });
+      var storeList = Object.keys(stores).map(function (k) { return stores[k]; }).sort(function (a, b) { return b.gmv - a.gmv; });
+
+      var storeTb = document.getElementById('storeRows');
+      if (storeList.length) {
+        storeTb.innerHTML = storeList.slice(0, 20).map(function (s, i) {
+          return '<tr><td class="mono muted">' + (i + 1) + '</td>' +
+            '<td><strong>' + esc(s.name) + '</strong></td>' +
+            '<td><span class="tag tag-blue">' + esc(s.platform) + '</span></td>' +
+            '<td class="num">' + fmtMoney(s.gmv) + '</td>' +
+            '<td class="num">' + fmtInt(s.orders) + '</td>' +
+            '<td class="num">' + fmtInt(s.uv) + '</td>' +
+            '<td class="num">' + fmtPct(s.conv) + '</td></tr>';
+        }).join('');
+      } else {
+        storeTb.innerHTML = '<tr><td colspan="7" class="loading">暂无分店铺数据</td></tr>';
+      }
+
+      /* ── 负责人业绩 ───────────────────────────── */
+      var perf = byKey('perf');
+      var perfRows = (perf && perf.rows || []).filter(function (r) { return Number(r['GMV']) > 0; });
+      var perfTb = document.getElementById('perfRows');
+      if (perfRows.length) {
+        perfTb.innerHTML = perfRows.map(function (r) {
+          return '<tr>' +
+            '<td><strong>' + esc(r['负责人'] || '—') + '</strong></td>' +
+            '<td><span class="tag tag-green">' + esc(r['平台'] || '—') + '</span></td>' +
+            '<td class="num">' + fmtMoney(r['GMV']) + '</td>' +
+            '<td class="num">' + fmtMoney(r['净利润']) + '</td>' +
+            '<td class="num">' + (r['利润率'] != null ? esc(r['利润率']) + '%' : '—') + '</td>' +
+            '<td class="num">' + fmtMoney(r['客单价']) + '</td>' +
+            '<td class="num">' + (r['认领成单率'] != null ? esc(r['认领成单率']) + '%' : '—') + '</td></tr>';
+        }).join('');
+      } else {
+        perfTb.innerHTML = '<tr><td colspan="7" class="loading">暂无负责人业绩数据</td></tr>';
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

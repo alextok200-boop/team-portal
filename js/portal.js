@@ -44,7 +44,7 @@ var Portal = (function () {
     var html =
       '<header class="portal-header">' +
         '<nav class="portal-nav">' +
-          '<a href="' + esc(Site.url('/pages/dashboard.html')) + '" class="portal-logo">' +
+          '<a href="' + esc(Site.url('/pages/board.html')) + '" class="portal-logo">' +
             '<span class="dot"></span>' + esc(title || '团队门户') +
           '</a>' +
           '<div class="portal-nav-links">' +

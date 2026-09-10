@@ -54,7 +54,7 @@
   // 已登录则直接进入
   if (API.getToken()) {
     Auth.init().then(function (u) {
-      if (u) window.location.replace(Site.url(u.landing || '/pages/dashboard.html'));
+      if (u) window.location.replace(Site.url(u.landing || '/pages/board.html'));
     });
   }
 
@@ -90,7 +90,7 @@
       if (res.ok) {
         showOk('登录成功，正在进入…');
         var next = new URLSearchParams(window.location.search).get('next');
-        var target = (next && Auth.canAccess(next)) ? next : Site.url(res.user.landing || '/pages/dashboard.html');
+        var target = (next && Auth.canAccess(next)) ? next : Site.url(res.user.landing || '/pages/board.html');
         setTimeout(function () { window.location.href = target; }, 300);
       } else {
         showError(res.error || '登录失败');
