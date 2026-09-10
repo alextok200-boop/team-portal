@@ -1,0 +1,9 @@
+# Python 缓存（tools/fetch-remote-commit.py 等运行后产生）
+__pycache__/
+*.py[cod]
+
+# API 推送/兜底脚本的临时产物
+_tree.json
+_commit.json
+_ref.json
+_blob.json

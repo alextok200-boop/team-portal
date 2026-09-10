@@ -65,6 +65,7 @@ team-portal/
 ├── scripts/fetch-openapi.js     # 钉钉 OpenAPI 抓取脚本（纯 OpenAPI，无需本机）
 ├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:05）
 ├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
+├── tools/fetch-remote-commit.py # 上述脚本的 API 兜底（github.com 不通时用）
 └── .nojekyll                    # 防 Jekyll 处理
 ```
 
@@ -120,8 +121,8 @@ team-portal/
 
 ### 4. 本地 Git 同步（重要）
 
-本项目的推送有时必须走 **Git Data API 绕行**（blob → tree → commit → ref），
-因为 `git push` 走 github.com:443 会被 reset。**API 推送不会回写本地 git**，
+本项目的推送常需走 **Git Data API 绕行**（blob → tree → commit → ref），
+因为本机 `git push` 走 github.com:443 会被 reset / SSL 中断。**API 推送不会回写本地 git**，
 长期下来本地历史会与远端分叉（本地 `git log` 看不到真实版本、`git pull` 冲突、本地无法当回滚点）。
 
 因此：**凡做过 API 推送，或不确定本地是否落后，跑一次**
@@ -131,10 +132,21 @@ bash tools/sync-local.sh            # 有未提交改动会自动打包备份到
 bash tools/sync-local.sh --check    # 只报告差多少，不动文件（落后时退出码 2）
 ```
 
-该脚本用 `FETCH_HEAD` 作为对齐目标（不强依赖 remote-tracking ref），
-并在 `git update-ref` 静默失效的受限环境下直写 `.git/refs/remotes/origin/main` 兜底。
+脚本走**双通路**，因为本机 `github.com` 时通时断：
 
-> 正常网络下 `git push` / `git pull` 可以直接用；只有 443 被 reset 时才需要 API 绕行。
+| 通路 | 触发条件 | 做法 |
+|---|---|---|
+| ① `git fetch` | github.com:443 可达 | 直接取回对象（首选） |
+| ② `api.github.com` 兜底 | fetch 被 reset / 502 / SSL eof | `tools/fetch-remote-commit.py` 从 API 取远端 SHA，**在本地重建同 SHA 的 commit 对象**，再 reset |
+
+另有两个环境坑已在脚本内处理：
+- **代理干扰**：脚本开头 `unset http_proxy/https_proxy/...`（沙箱注入的代理常让 github.com 的 CONNECT 隧道 502）
+- **`git update-ref` 静默失效**：受限环境下 git 写 `.git/refs/remotes/**` 会无声失败，导致 `origin/main` 解析不到、`git status` 永远显示 up-to-date —— 脚本用幂等直写兜底
+
+> ⚠️ `git reset --hard` 会删掉「只在旧提交里存在」的文件（实测踩过：回退时把整个 `tools/` 目录删了）。
+> 该脚本只用于**向前对齐**，不要拿它当回退工具。
+>
+> 正常网络下 `git push` / `git pull` 可直接用；只有 443 被中断时才需要 API 绕行。
 > 无论走哪条路，推送后养成跑一次 `sync-local.sh` 的习惯。
 
 ## 📤 部署（GitHub Pages）
