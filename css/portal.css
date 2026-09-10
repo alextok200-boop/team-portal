@@ -756,3 +756,19 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
   .landing-hero { padding: 120px 18px 50px; }
   .landing-hero h1 { font-size: 34px; }
 }
+
+/* ── 看板钻取：可点击的指标卡与行 ─────────────── */
+.stat-link {
+  display: block;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+.stat-link:hover {
+  border-color: var(--neon-green);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(0, 255, 163, 0.25);
+}
+.row-click { cursor: pointer; }
+tbody tr.row-click:hover { background: rgba(0, 255, 163, 0.06); }

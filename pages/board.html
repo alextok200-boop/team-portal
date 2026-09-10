@@ -109,9 +109,10 @@
           { label: 'UV（国内）', value: fmtInt(latest['UV']) }
         ];
         document.getElementById('coreStats').innerHTML = cards.map(function (c) {
-          return '<div class="stat"><div class="label">' + c.label +
+          return '<a class="stat stat-link" href="tables.html?table=overview" title="点击查看日报总览明细">' +
+                 '<div class="label">' + c.label +
                  (latest['日期'] ? ' · ' + esc(latest['日期']) : '') + '</div>' +
-                 '<div class="value">' + c.value + '</div></div>';
+                 '<div class="value">' + c.value + '</div></a>';
         }).join('');
       } else {
         document.getElementById('coreStats').innerHTML = '<div class="empty"><div class="icon">📭</div><div>日报总览暂无数据</div></div>';
@@ -125,7 +126,7 @@
           var name = r['店铺名'];
           var gmv = Number(r['全店GMV']) || 0;
           if (!name || gmv <= 0) return;
-          if (!stores[name]) stores[name] = { name: name, platform: r['平台'] || '', gmv: 0, orders: 0, uv: 0, conv: null };
+          if (!stores[name]) stores[name] = { name: name, platform: r['平台'] || '', gmv: 0, orders: 0, uv: 0, conv: null, tableKey: key };
           stores[name].gmv += gmv;
           stores[name].orders += Number(r['订单量']) || 0;
           stores[name].uv += Number(r['UV']) || 0;
@@ -137,7 +138,8 @@
       var storeTb = document.getElementById('storeRows');
       if (storeList.length) {
         storeTb.innerHTML = storeList.slice(0, 20).map(function (s, i) {
-          return '<tr><td class="mono muted">' + (i + 1) + '</td>' +
+          return '<tr class="row-click" data-href="tables.html?table=' + s.tableKey + '&q=' + encodeURIComponent(s.name) + '" title="点击查看该店铺明细">' +
+            '<td class="mono muted">' + (i + 1) + '</td>' +
             '<td><strong>' + esc(s.name) + '</strong></td>' +
             '<td><span class="tag tag-blue">' + esc(s.platform) + '</span></td>' +
             '<td class="num">' + fmtMoney(s.gmv) + '</td>' +
@@ -155,7 +157,7 @@
       var perfTb = document.getElementById('perfRows');
       if (perfRows.length) {
         perfTb.innerHTML = perfRows.map(function (r) {
-          return '<tr>' +
+          return '<tr class="row-click" data-href="tables.html?table=perf&q=' + encodeURIComponent(r['负责人'] || '') + '" title="点击查看该负责人业绩明细">' +
             '<td><strong>' + esc(r['负责人'] || '—') + '</strong></td>' +
             '<td><span class="tag tag-green">' + esc(r['平台'] || '—') + '</span></td>' +
             '<td class="num">' + fmtMoney(r['GMV']) + '</td>' +
@@ -167,6 +169,14 @@
       } else {
         perfTb.innerHTML = '<tr><td colspan="7" class="loading">暂无负责人业绩数据</td></tr>';
       }
+
+      /* ── 行点击钻取（事件委托）────────────────── */
+      ['storeRows', 'perfRows'].forEach(function (id) {
+        document.getElementById(id).addEventListener('click', function (e) {
+          var tr = e.target.closest('tr.row-click');
+          if (tr && tr.dataset.href) location.href = tr.dataset.href;
+        });
+      });
     });
   });
 })();

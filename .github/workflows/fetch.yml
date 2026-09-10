@@ -1,0 +1,42 @@
+name: 钉钉日报数据抓取
+
+on:
+  schedule:
+    # UTC 03:05 = 北京时间 11:05（每日）
+    - cron: '5 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 抓取钉钉 AI 表格数据
+        env:
+          DINGTALK_APP_KEY: ${{ secrets.DINGTALK_APP_KEY }}
+          DINGTALK_APP_SECRET: ${{ secrets.DINGTALK_APP_SECRET }}
+          DINGTALK_OPERATOR_ID: ${{ secrets.DINGTALK_OPERATOR_ID }}
+          DINGTALK_BASE_ID: ${{ secrets.DINGTALK_BASE_ID }}
+        run: node scripts/fetch-openapi.js
+
+      - name: 提交数据（若有变化）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/daily.json
+          if git diff --cached --quiet; then
+            echo "数据无变化，跳过提交"
+          else
+            git commit -m "chore: 更新日报数据 $(date -u +%F)"
+            git push
+          fi

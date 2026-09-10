@@ -28,12 +28,13 @@ var DEFAULT_ROLES = {
     name: '团队主管',
     color: '#00c8ff',
     landing: '/pages/board.html',
-    desc: '业务数据看板 + 日报数据 + 数据指标 + 成员管理',
+    desc: '业务数据看板 + 日报数据 + 数据中心 + 数据指标 + 成员管理',
     builtin: false,
     pages: [
       '/pages/board.html',
       '/pages/dashboard.html',
       '/pages/data.html',
+      '/pages/tables.html',
       '/pages/metrics.html',
       '/pages/members.html',
       '/pages/careers.html'
@@ -45,12 +46,13 @@ var DEFAULT_ROLES = {
     name: '团队成员',
     color: '#ff5ec9',
     landing: '/pages/board.html',
-    desc: '业务数据看板 + 工作台 + 日报数据 + 内容管理（只读）',
+    desc: '业务数据看板 + 工作台 + 日报数据 + 数据中心 + 内容管理（只读）',
     builtin: false,
     pages: [
       '/pages/board.html',
       '/pages/dashboard.html',
       '/pages/data.html',
+      '/pages/tables.html',
       '/pages/content.html',
       '/pages/careers.html'
     ]
@@ -99,6 +101,7 @@ var PAGE_CATALOG = [
   { path: '/pages/board.html',     label: '业务数据看板', group: '核心' },
   { path: '/pages/dashboard.html', label: '工作台',       group: '核心' },
   { path: '/pages/data.html',      label: '日报数据',     group: '核心' },
+  { path: '/pages/tables.html',    label: '数据中心',     group: '核心' },
   { path: '/pages/metrics.html',   label: '数据指标',     group: '数据' },
   { path: '/pages/content.html',   label: '内容管理',     group: '内容' },
   { path: '/pages/members.html',   label: '成员管理',     group: '数据' },

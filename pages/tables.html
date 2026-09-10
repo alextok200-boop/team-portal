@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="/team-portal/">
+<script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据中心 · 团队门户</title>
+<link rel="stylesheet" href="css/portal.css?v=2.1.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
+</head>
+<body>
+
+<main class="portal-main">
+  <h1 class="page-title">数据中心</h1>
+  <p class="page-sub">后台数据表格 · 钉钉 AI 表格全部数据</p>
+
+  <div class="notice" id="srcBox" style="display:none">
+    <strong>数据源：</strong><span id="srcName"></span>
+    <span id="srcTime" style="margin-left:12px"></span>
+  </div>
+
+  <div class="tabs" id="tableTabs"></div>
+
+  <div class="toolbar">
+    <input type="search" id="search" class="input" placeholder="搜索当前表（匹配任意字段）">
+    <span class="muted" id="rowMeta"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead id="thead"></thead>
+      <tbody id="tbody"><tr><td class="loading">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/api.js?v=2.0.0"></script>
+<script src="js/auth.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.0.0"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = Portal.esc;
+
+  var DATA = null;
+  var activeKey = null;
+  var query = '';
+  var HIDE_COLS = ['父记录'];
+
+  function fmt(v) {
+    if (v === undefined || v === null || v === '') return '—';
+    var s = String(v);
+    if (/^-?\d+(\.\d+)?$/.test(s)) {
+      var n = Number(s);
+      return n.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+    }
+    return s;
+  }
+
+  function renderTabs() {
+    var html = DATA.tables.map(function (t) {
+      return '<button class="tab' + (t.key === activeKey ? ' active' : '') + '" data-key="' + t.key + '">' +
+        esc(t.name.replace(/^\d+\./, '')) + ' <span class="tab-badge">' + t.rowCount + '</span></button>';
+    }).join('');
+    document.getElementById('tableTabs').innerHTML = html;
+  }
+
+  function renderTable() {
+    var t = DATA.tables.filter(function (x) { return x.key === activeKey; })[0];
+    if (!t) { document.getElementById('tbody').innerHTML = '<tr><td class="loading">未选择数据表</td></tr>'; document.getElementById('thead').innerHTML = ''; return; }
+
+    var cols = (t.columns || []).filter(function (c) { return HIDE_COLS.indexOf(c) === -1; });
+    // 只保留至少一行有值的列
+    var used = cols.filter(function (c) {
+      return t.rows.some(function (r) { return r[c] !== undefined && r[c] !== '' && r[c] !== null; });
+    });
+    if (!used.length) used = cols.slice(0, 12);
+
+    var q = query.toLowerCase();
+    var rows = t.rows.filter(function (r) {
+      if (!q) return true;
+      return used.some(function (c) {
+        var v = r[c];
+        return v !== undefined && v !== null && String(v).toLowerCase().indexOf(q) !== -1;
+      });
+    });
+
+    document.getElementById('thead').innerHTML = '<tr><th style="width:44px">#</th>' +
+      used.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr>';
+
+    var shown = rows.slice(0, 300);
+    document.getElementById('rowMeta').textContent =
+      '共 ' + t.rowCount + ' 行' + (q ? ' · 匹配 ' + rows.length + ' 行' : '') +
+      (shown.length < rows.length ? ' · 显示前 ' + shown.length + ' 行' : '');
+
+    if (!shown.length) {
+      document.getElementById('tbody').innerHTML = '<tr><td class="loading" colspan="' + (used.length + 1) + '">无匹配记录</td></tr>';
+      return;
+    }
+
+    document.getElementById('tbody').innerHTML = shown.map(function (r, i) {
+      return '<tr>' +
+        '<td class="mono muted">' + (i + 1) + '</td>' +
+        used.map(function (c) {
+          var v = r[c];
+          if (v === undefined || v === null || v === '') return '<td class="muted">—</td>';
+          var s = String(v);
+          if (/^-?\d+(\.\d+)?$/.test(s)) return '<td class="num">' + fmt(v) + '</td>';
+          return '<td>' + esc(s.length > 80 ? s.slice(0, 80) + '…' : s) + '</td>';
+        }).join('') +
+      '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('tableTabs').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab');
+    if (!b) return;
+    activeKey = b.dataset.key;
+    renderTabs();
+    renderTable();
+  });
+
+  document.getElementById('search').addEventListener('input', function (e) {
+    query = e.target.value.trim();
+    renderTable();
+  });
+
+  Portal.boot({ title: '团队门户', roles: ['admin', 'team_leader'] }).then(function (u) {
+    if (!u) return;
+
+    API.get('/api/data/daily').then(function (res) {
+      if (!res.ok || res.empty) {
+        document.getElementById('tbody').innerHTML = '<tr><td class="loading">' + esc(res.message || '暂无数据') + '</td></tr>';
+        return;
+      }
+      DATA = res.data;
+      document.getElementById('srcBox').style.display = '';
+      document.getElementById('srcName').textContent = DATA.source;
+      document.getElementById('srcTime').textContent = '最近同步：' + DATA.fetchedAtLocal;
+
+      // 支持 ?table=key&q=关键词（看板钻取用）
+      var params = new URLSearchParams(window.location.search);
+      var wantTable = params.get('table');
+      var wantQ = params.get('q');
+
+      // 选表：优先 URL 参数，否则选行数最多的表
+      var best = DATA.tables.slice().sort(function (a, b) { return b.rowCount - a.rowCount; })[0];
+      activeKey = (wantTable && DATA.tables.some(function (t) { return t.key === wantTable; }))
+        ? wantTable : (best ? best.key : null);
+
+      if (wantQ) {
+        query = wantQ;
+        document.getElementById('search').value = wantQ;
+      }
+
+      renderTabs();
+      renderTable();
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
