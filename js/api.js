@@ -16,14 +16,14 @@ var API = (function () {
   var K = {
     token: 'portal_token',
     user:  'portal_user',
-    users: 'portal_users',          // 本机新增/修改的「覆盖层」（仅在管理员这台浏览器生效）
-    usersRemote: 'portal_users_remote', // data/users.json 的本地缓存（全站共享名单）
-    lastLogin: 'portal_lastlogin',  // {uid: iso} 独立存放，避免登录时重写用户表
+    users: 'portal_users',               // 用户表：本机覆盖层（仅在管理员这台浏览器生效）
+    usersRemote: 'portal_users_remote',  // data/users.json 的本地缓存（全站共享名单）
+    lastLogin: 'portal_lastlogin',       // {uid: iso} 独立存放，避免登录时重写用户表
+    content: 'portal_content',           // 内容表：本机覆盖层
+    contentRemote: 'portal_content_remote',
     roles: 'portal_roles',
     logs:  'portal_logs'
   };
-
-  var REMOTE_URL = 'data/users.json';
 
   /* ── 基础存储 ────────────────────────────────── */
   function readJSON(key, fb) {
@@ -37,85 +37,53 @@ var API = (function () {
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
   /* ══════════════════════════════════════════════════════════
-     用户表：三源合并
+     数据表：三源合并（合并/墓碑/导出逻辑在 js/datastore.js，只写一遍）
      ──────────────────────────────────────────────────────────
-       ① DEFAULT_USERS     js/config/roles.js   随源码部署，全站生效
-       ② data/users.json   仓库文件           随源码部署，全站生效 ← 新增用户靠它
-       ③ localStorage      本机覆盖层         只在管理员这台浏览器生效
-     优先级：③ > ② > ①，按 username（忽略大小写）去重。
-     同名用户被高优先级整体覆盖，不做字段级合并。
+       ① 源码常量      js/config/*.js   随源码部署   全站生效
+       ② 仓库数据文件  data/*.json      随仓库部署   全站生效 ← 改动到同事机器的唯一通路
+       ③ 本机覆盖层    localStorage     仅本机       即时可用但别人看不到
 
-     ⚠️ 为什么会这样：GitHub Pages 是纯静态托管，浏览器没有服务端可写。
-        所以「新增用户」在后台点完只落在本机 localStorage，
-        必须导出 data/users.json 并提交，同事才登得上。
+     ⚠️ GitHub Pages 是纯静态托管，浏览器没有服务端可写。
+        所以在后台点「新增/编辑/删除」只落在本机，
+        必须「导出」→ 覆盖仓库文件 → 提交，才会全站生效。
      ══════════════════════════════════════════════════════════ */
 
-  var REMOTE = { loaded: false, error: null, count: 0 };
+  var usersStore = DataStore.create({
+    localKey: K.users,
+    remoteKey: K.usersRemote,
+    remoteUrl: 'data/users.json',
+    itemsField: 'users',
+    key: 'username',
+    /* 只有这些字段参与「与共享名单是否等价」的判定；
+       lastLogin / createdAt 之类的高频噪声字段不参与，否则永远判定为"有差异" */
+    identity: ['role', 'active', 'passwordHash', 'name'],
+    boolFields: ['active'],
+    defaults: function () { return DEFAULT_USERS; },
+    note: '团队门户共享账号名单。本文件随仓库部署，所有设备/浏览器通用。'
+        + '新增用户请在管理后台点「导出用户配置」下载 users.json，覆盖本文件后提交即可全站生效'
+        + '（也可用 tools/add-user.py 命令行加号）。'
+        + 'passwordHash 为 SHA-256（sha256$ 前缀），非明文。'
+        + 'deleted 为已删除账号的用户名列表（用于删除源码内置账号时全站同步）。'
+  });
 
-  /* ② data/users.json：拉取 + 缓存 */
-  function loadRemoteCache() {
-    var d = readJSON(K.usersRemote, null);
-    return (d && d.users && d.users.length) ? d.users : [];
-  }
-  function loadRemoteDeleted() {
-    var d = readJSON(K.usersRemote, null);
-    return (d && d.deleted) || [];
-  }
-  function ensureRemote(force) {
-    if (REMOTE.loaded && !force) return Promise.resolve(REMOTE);
-    var base = (window.SITE_BASE || '/');
-    return fetch(base + REMOTE_URL, { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function (d) {
-        var list = (d && d.users) || [];
-        writeJSON(K.usersRemote, { version: (d && d.version) || 1, updatedAt: (d && d.updatedAt) || null, deleted: (d && d.deleted) || [], users: list });
-        REMOTE = { loaded: true, error: null, count: list.length };
-        return REMOTE;
-      })
-      .catch(function (e) {
-        REMOTE = { loaded: true, error: String((e && e.message) || e), count: loadRemoteCache().length };
-        return REMOTE;
-      });
-  }
+  var contentStore = DataStore.create({
+    localKey: K.content,
+    remoteKey: K.contentRemote,
+    remoteUrl: 'data/content.json',
+    itemsField: 'items',
+    key: 'id',
+    identity: ['title', 'type', 'status', 'owner', 'channel', 'body', 'link', 'updatedAt'],
+    defaults: function () { return []; },
+    note: '团队门户内容清单。本文件随仓库部署，所有设备/浏览器通用。'
+        + '管理后台「内容管理 → 导出内容配置」下载本文件覆盖后提交即可全站生效。'
+        + 'deleted 为已删除条目的 id 列表。'
+  });
 
-  /* ③ 本机覆盖层 */
-  function loadLocal() { return readJSON(K.users, null) || []; }
-  function saveLocal(list) { writeJSON(K.users, list); }
-
-  /* 同名去重合并（低优先级在前） */
-  function mergeByUsername() {
-    var layers = arguments, idx = {}, out = [];
-    for (var i = 0; i < layers.length; i++) {
-      (layers[i] || []).forEach(function (u) {
-        if (!u || !u.username) return;
-        var key = String(u.username).toLowerCase();
-        if (Object.prototype.hasOwnProperty.call(idx, key)) out[idx[key]] = u;
-        else { idx[key] = out.length; out.push(u); }
-      });
-    }
-    return out;
-  }
-
-  /* 两条记录「身份字段」是否等价（忽略 lastLogin / createdAt 之类噪声） */
-  function sameIdentity(a, b) {
-    if (!a || !b) return false;
-    return String(a.role) === String(b.role)
-      && (a.active !== false) === (b.active !== false)
-      && String(a.passwordHash || '') === String(b.passwordHash || '')
-      && String(a.name || '') === String(b.name || '');
-  }
-
-  /* 清掉「本机覆盖层」里与共享名单等价的陈旧副本
-     （历史版本登录时会把整表写进 localStorage，成员浏览器里会留下快照，
-       若不清理，管理员远端改了密码，成员本机的旧快照会把它盖回去） */
-  function pruneLocal(local, shared) {
-    var byName = {};
-    shared.forEach(function (u) { if (u && u.username) byName[String(u.username).toLowerCase()] = u; });
-    return local.filter(function (u) {
-      var b = byName[String(u.username || '').toLowerCase()];
-      return !b || !sameIdentity(u, b);
-    });
-  }
+  function ensureRemote() { return usersStore.ready(); }
+  /* 用户路由统一入口：先等 data/users.json 落地再读。
+     只在 login 里 await 是不够的 —— 管理员带 token 直接进后台时没人 await，
+     GET /api/users 会在共享名单落地前读到空表（列表闪空、少人）。 */
+  function withUsers(fn) { return usersStore.ready().then(fn); }
 
   function loadLastLogin() { return readJSON(K.lastLogin, {}) || {}; }
   function touchLastLogin(id, iso) {
@@ -124,41 +92,78 @@ var API = (function () {
     writeJSON(K.lastLogin, m);
   }
 
-  /* 最终用户表 */
+  /* ── 用户表 ─────────────────────────────────── */
   function loadUsers() {
-    var rawLocal = loadLocal();
-    var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
-    var local = pruneLocal(rawLocal, shared);
-    if (local.length !== rawLocal.length) saveLocal(local);   // 清掉陈旧整表副本，避免盖住仓库里的新改动
-    var merged = mergeByUsername(clone(DEFAULT_USERS), loadRemoteCache(), local);
-    var gone = {};
-    loadRemoteDeleted().forEach(function (n) { gone[String(n).toLowerCase()] = 1; });
-    local.forEach(function (u) { if (u && u._deleted) gone[String(u.username).toLowerCase()] = 1; });
-    merged = merged.filter(function (u) { return !u._deleted && !gone[String(u.username).toLowerCase()]; });
+    var merged = usersStore.load();
     var ll = loadLastLogin();
     merged.forEach(function (u) { if (ll[u.id]) u.lastLogin = ll[u.id]; });
     return merged;
   }
+  function userSource(u) { return usersStore.sourceOf(u); }
+  /* 写回「本机覆盖层」：只落差异记录，不再把整表写进 localStorage */
+  function saveUsers(list) { usersStore.save(list); }
 
-  /* 账号来源：源码内置 / 仓库共享名单 / 仅本机 */
-  function userSource(u) {
-    if (u.builtin) return 'builtin';
-    if (loadLocal().some(function (x) { return !x._deleted && x.username && x.username.toLowerCase() === String(u.username).toLowerCase(); })) return 'local';
-    if (loadRemoteCache().some(function (x) { return x.username && x.username.toLowerCase() === String(u.username).toLowerCase(); })) return 'remote';
-    return 'builtin';
+  /* ── 内容表 ─────────────────────────────────── */
+  function loadContent() { return contentStore.load(); }
+  function saveContent(list) { contentStore.save(list); }
+  /* 内容路由统一入口：先等 data/content.json 拉取落地再读。
+     否则首次请求时远端缓存还没写入 localStorage，列表会被读成空表，
+     连「这条是仓库条目还是本机条目」都会判错（inShared 失效）。 */
+  function withContent(fn) { return contentStore.ready().then(fn); }
+  var CONTENT_TYPES = ['文档', '图片', '视频', '链接'];
+  var CONTENT_STATUS = ['草稿', '已发布', '已归档'];
+
+  function publicContent(c) {
+    return {
+      id: c.id, title: c.title, type: c.type, status: c.status,
+      owner: c.owner || '', channel: c.channel || '',
+      body: c.body || '', link: c.link || '', author: c.author || '',
+      createdAt: c.createdAt || null, updatedAt: c.updatedAt || null,
+      source: contentStore.sourceOf(c)
+    };
   }
 
-  /* 写回「本机覆盖层」：只落差异记录，不再把整表写进 localStorage */
-  function saveUsers(list) {
-    var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
-    var byName = {};
-    shared.forEach(function (u) { if (u && u.username) byName[String(u.username).toLowerCase()] = u; });
-    // 与共享名单等价的不需要落盘；_deleted 墓碑必须保留
-    saveLocal(list.filter(function (u) {
-      if (u && u._deleted) return true;
-      var b = byName[String((u && u.username) || '').toLowerCase()];
-      return !b || !sameIdentity(u, b);
-    }));
+  /* 内容字段校验。base 非空表示编辑，未传的字段沿用原值 */
+  function validateContent(b, base) {
+    b = b || {};
+    function pick(k, fb) {
+      if (b[k] !== undefined && b[k] !== null) return b[k];
+      if (base && base[k] !== undefined && base[k] !== null) return base[k];
+      return fb;
+    }
+    var title = String(pick('title', '')).trim();
+    if (!title) return { error: '请填写标题' };
+    if (title.length > 80) return { error: '标题最多 80 字' };
+    var type = String(pick('type', CONTENT_TYPES[0])).trim();
+    if (CONTENT_TYPES.indexOf(type) === -1) return { error: '类型只能是：' + CONTENT_TYPES.join(' / ') };
+    var status = String(pick('status', CONTENT_STATUS[0])).trim();
+    if (CONTENT_STATUS.indexOf(status) === -1) return { error: '状态只能是：' + CONTENT_STATUS.join(' / ') };
+    var body = String(pick('body', ''));
+    if (body.length > 2000) return { error: '说明最多 2000 字' };
+    var link = String(pick('link', '')).trim();
+    if (link && !/^(https?:\/\/|\/)/i.test(link)) return { error: '链接需以 http(s):// 或 / 开头' };
+    return {
+      item: {
+        id: (base && base.id) || '',
+        title: title, type: type, status: status,
+        owner: String(pick('owner', '')).trim().slice(0, 20),
+        channel: String(pick('channel', '')).trim().slice(0, 20),
+        body: body, link: link,
+        createdAt: (base && base.createdAt) || '',
+        updatedAt: (base && base.updatedAt) || '',
+        author: (base && base.author) || ''
+      }
+    };
+  }
+
+  /* 内容改动写日志（与用户表日志同结构，登录日志页可读） */
+  function logContent(reason) {
+    var u = currentUser();
+    appendLog({
+      time: new Date().toISOString(),
+      username: u ? u.username : 'local', name: u ? u.name : '', role: u ? u.role : '',
+      ok: true, reason: reason, ip: 'local'
+    });
   }
 
   function loadRoles() {
@@ -342,7 +347,7 @@ var API = (function () {
     /* ── 用户管理（admin）──────────────────────── */
     if (url === '/api/users' && method === 'GET') {
       if (!isAdmin()) return err(403, '需要管理员权限');
-      return ok(200, { users: loadUsers().map(publicUser) });
+      return withUsers(function () { return ok(200, { users: loadUsers().map(publicUser) }); });
     }
     if (url === '/api/users' && method === 'POST') {
       if (!isAdmin()) return err(403, '需要管理员权限');
@@ -356,15 +361,17 @@ var API = (function () {
       if (np.length < 6) return err(400, '密码至少 6 位');
       if (!nn) return err(400, '请填写姓名');
       if (!loadRoles()[nr]) return err(400, '角色不存在');
-      var us = loadUsers();
-      if (us.some(function (x) { return x.username.toLowerCase() === nu.toLowerCase(); })) return err(409, '该账号已存在');
-      return hashPassword(np).then(function (h) {
-        var uu = { id: 'u_' + Date.now().toString(36), username: nu, passwordHash: h, name: nn, role: nr, active: true, builtin: false, createdAt: new Date().toISOString(), lastLogin: null };
-        us.push(uu);
-        saveUsers(us);
-        var cu2 = currentUser();
-        if (cu2) appendLog({ time: new Date().toISOString(), username: cu2.username, name: cu2.name, role: cu2.role, ok: true, reason: '新增用户 ' + nu + '（' + nr + '）· 本机', ip: 'local' });
-        return ok(200, { user: publicUser(uu), pending: true });
+      return withUsers(function () {
+        var us = loadUsers();
+        if (us.some(function (x) { return x.username.toLowerCase() === nu.toLowerCase(); })) return err(409, '该账号已存在');
+        return hashPassword(np).then(function (h) {
+          var uu = { id: 'u_' + Date.now().toString(36), username: nu, passwordHash: h, name: nn, role: nr, active: true, builtin: false, createdAt: new Date().toISOString(), lastLogin: null };
+          us.push(uu);
+          saveUsers(us);
+          var cu2 = currentUser();
+          if (cu2) appendLog({ time: new Date().toISOString(), username: cu2.username, name: cu2.name, role: cu2.role, ok: true, reason: '新增用户 ' + nu + '（' + nr + '）· 本机', ip: 'local' });
+          return ok(200, { user: publicUser(uu), pending: true });
+        });
       });
     }
 
@@ -372,30 +379,19 @@ var API = (function () {
        供管理后台一键下载 data/users.json —— 提交到仓库后全站生效 ── */
     if (url === '/api/users/export' && method === 'GET') {
       if (!isAdmin()) return err(403, '需要管理员权限');
-      var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
-      var local = loadLocal();
-      var rows = loadUsers().filter(function (u) {
-        var base = shared.filter(function (x) { return x.username && u.username && x.username.toLowerCase() === u.username.toLowerCase(); })[0];
-        return !base || !sameIdentity(u, base);   // 与源码/仓库等价的不用重复导出
-      });
-      var deleted = loadRemoteDeleted().slice();
-      local.forEach(function (u) { if (u && u._deleted && u.username && deleted.indexOf(u.username) === -1) deleted.push(u.username); });
-      rows = rows.filter(function (u) { return deleted.indexOf(u.username) === -1; });
-      return ok(200, {
-        payload: {
-          version: 1,
-          updatedAt: new Date().toISOString(),
-          note: '团队门户共享账号名单。由管理后台「导出用户配置」生成。passwordHash 为 sha256$ 前缀的 SHA-256，非明文。deleted 为已删除账号的用户名列表。',
-          deleted: deleted,
-          users: rows.map(function (u) {
-            return {
-              id: u.id, username: u.username, name: u.name, role: u.role,
-              passwordHash: u.passwordHash, active: u.active !== false,
-              builtin: false, createdAt: u.createdAt || new Date().toISOString(), lastLogin: null
-            };
-          })
-        },
-        stats: { total: loadUsers().length, exported: rows.length, deleted: deleted.length }
+      return withUsers(function () {
+        var uPayload = usersStore.exportPayload();
+        uPayload.users = uPayload.users.map(function (u) {
+          return {
+            id: u.id, username: u.username, name: u.name, role: u.role,
+            passwordHash: u.passwordHash, active: u.active !== false,
+            builtin: false, createdAt: u.createdAt || new Date().toISOString(), lastLogin: null
+          };
+        });
+        return ok(200, {
+          payload: uPayload,
+          stats: { total: loadUsers().length, exported: uPayload.users.length, deleted: uPayload.deleted.length }
+        });
       });
     }
     var mUsers = url.match(/^\/api\/users\/([^\/]+)$/);
@@ -403,62 +399,150 @@ var API = (function () {
       if (!isAdmin()) return err(403, '需要管理员权限');
       if (!isSecureContext()) return err(400, INSECURE_MSG);
       var id = mUsers[1];
-      var us = loadUsers();
-      var u = us.filter(function (x) { return x.id === id; })[0];
-      if (!u) return err(404, '用户不存在');
-      var b = body;
-      if (b.name !== undefined) u.name = String(b.name).trim() || u.name;
-      if (b.role !== undefined) {
-        if (!loadRoles()[b.role]) return err(400, '角色不存在');
-        if (u.username === 'admin' && b.role !== 'admin') return err(400, '内置 admin 账号不可降级');
-        u.role = String(b.role);
-      }
-      if (b.active !== undefined) {
-        if (u.username === 'admin' && b.active === false) return err(400, '内置 admin 账号不可停用');
-        u.active = !!b.active;
-      }
-      if (b.username !== undefined && b.username !== u.username) {
-        var xnu = String(b.username).trim();
-        if (!/^[A-Za-z0-9_.@-]{3,32}$/.test(xnu)) return err(400, '账号格式不合法');
-        if (us.some(function (x) { return x.id !== u.id && x.username.toLowerCase() === xnu.toLowerCase(); })) return err(409, '该账号已存在');
-        if (u.username === 'admin') return err(400, '内置 admin 账号不可改名');
-        u.username = xnu;
-      }
-      if (b.password) {
-        if (String(b.password).length < 6) return err(400, '密码至少 6 位');
-        return hashPassword(String(b.password)).then(function (h) {
-          u.passwordHash = h;
-          saveUsers(us);
-          var cu3 = currentUser();
-          if (cu3) appendLog({ time: new Date().toISOString(), username: cu3.username, name: cu3.name, role: cu3.role, ok: true, reason: '修改用户 ' + u.username + ' · 本机', ip: 'local' });
-          return ok(200, { user: publicUser(u), pending: true });
-        });
-      }
-      saveUsers(us);
-      var cu4 = currentUser();
-      if (cu4) appendLog({ time: new Date().toISOString(), username: cu4.username, name: cu4.name, role: cu4.role, ok: true, reason: '修改用户 ' + u.username + ' · 本机', ip: 'local' });
-      return ok(200, { user: publicUser(u), pending: true });
+      return withUsers(function () {
+        var us = loadUsers();
+        var u = us.filter(function (x) { return x.id === id; })[0];
+        if (!u) return err(404, '用户不存在');
+        var b = body;
+        if (b.name !== undefined) u.name = String(b.name).trim() || u.name;
+        if (b.role !== undefined) {
+          if (!loadRoles()[b.role]) return err(400, '角色不存在');
+          if (u.username === 'admin' && b.role !== 'admin') return err(400, '内置 admin 账号不可降级');
+          u.role = String(b.role);
+        }
+        if (b.active !== undefined) {
+          if (u.username === 'admin' && b.active === false) return err(400, '内置 admin 账号不可停用');
+          u.active = !!b.active;
+        }
+        if (b.username !== undefined && b.username !== u.username) {
+          var xnu = String(b.username).trim();
+          if (!/^[A-Za-z0-9_.@-]{3,32}$/.test(xnu)) return err(400, '账号格式不合法');
+          if (us.some(function (x) { return x.id !== u.id && x.username.toLowerCase() === xnu.toLowerCase(); })) return err(409, '该账号已存在');
+          if (u.username === 'admin') return err(400, '内置 admin 账号不可改名');
+          u.username = xnu;
+        }
+        if (b.password) {
+          if (String(b.password).length < 6) return err(400, '密码至少 6 位');
+          return hashPassword(String(b.password)).then(function (h) {
+            u.passwordHash = h;
+            saveUsers(us);
+            var cu3 = currentUser();
+            if (cu3) appendLog({ time: new Date().toISOString(), username: cu3.username, name: cu3.name, role: cu3.role, ok: true, reason: '修改用户 ' + u.username + ' · 本机', ip: 'local' });
+            return ok(200, { user: publicUser(u), pending: true });
+          });
+        }
+        saveUsers(us);
+        var cu4 = currentUser();
+        if (cu4) appendLog({ time: new Date().toISOString(), username: cu4.username, name: cu4.name, role: cu4.role, ok: true, reason: '修改用户 ' + u.username + ' · 本机', ip: 'local' });
+        return ok(200, { user: publicUser(u), pending: true });
+      });
     }
     if (mUsers && method === 'DELETE') {
       if (!isAdmin()) return err(403, '需要管理员权限');
       var id = mUsers[1];
-      var us = loadUsers();
-      var u = us.filter(function (x) { return x.id === id; })[0];
-      if (!u) return err(404, '用户不存在');
-      if (u.username === 'admin') return err(400, '内置 admin 账号不可删除');
-      var cu5 = currentUser();
-      if (cu5 && u.id === cu5.id) return err(400, '不能删除自己');
-      // 源码/仓库里的账号删不掉（合并时会被还原），改用「墓碑」标记：导出后全站同步删除
-      var shared = clone(DEFAULT_USERS).concat(loadRemoteCache());
-      var inShared = shared.some(function (x) { return x.username && x.username.toLowerCase() === u.username.toLowerCase(); });
-      saveUsers(us.filter(function (x) { return x.id !== id; }));
-      if (inShared) {
-        var lc = loadLocal();
-        lc.push({ id: 'del_' + Date.now().toString(36), username: u.username, name: u.name, role: u.role, _deleted: true, deletedAt: new Date().toISOString() });
-        saveLocal(lc);
-      }
-      if (cu5) appendLog({ time: new Date().toISOString(), username: cu5.username, name: cu5.name, role: cu5.role, ok: true, reason: '删除用户 ' + u.username + ' · 本机', ip: 'local' });
-      return ok(200, { pending: true });
+      return withUsers(function () {
+        var us = loadUsers();
+        var u = us.filter(function (x) { return x.id === id; })[0];
+        if (!u) return err(404, '用户不存在');
+        if (u.username === 'admin') return err(400, '内置 admin 账号不可删除');
+        var cu5 = currentUser();
+        if (cu5 && u.id === cu5.id) return err(400, '不能删除自己');
+        // 源码/仓库里的账号删不掉（合并时会被还原），改用「墓碑」标记：导出后全站同步删除
+        var inShared = usersStore.inShared(u);
+        saveUsers(us.filter(function (x) { return x.id !== id; }));
+        if (inShared) usersStore.tombstone(u);
+        if (cu5) appendLog({ time: new Date().toISOString(), username: cu5.username, name: cu5.name, role: cu5.role, ok: true, reason: '删除用户 ' + u.username + ' · 本机', ip: 'local' });
+        return ok(200, { pending: true });
+      });
+    }
+
+    /* ══ 内容管理 ══════════════════════════════════
+       读：登录即可；写：仅管理员（页面上对成员呈现为只读）
+       同样受「本机覆盖层」限制 —— 写完要导出 data/content.json 并提交才全站生效 ══ */
+    if (url === '/api/content' && method === 'GET') {
+      return withContent(function () {
+        var meC = currentUser();
+        if (!meC) return err(401, '未登录');
+        var list = loadContent().slice().sort(function (a, b) {
+          return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+        });
+        return ok(200, {
+          items: list.map(publicContent),
+          types: CONTENT_TYPES,
+          status: CONTENT_STATUS,
+          canEdit: meC.role === 'admin'
+        });
+      });
+    }
+
+    if (url === '/api/content' && method === 'POST') {
+      if (!isAdmin()) return err(403, '仅管理员可创建内容');
+      return withContent(function () {
+        var nc = validateContent(body, null);
+        if (nc.error) return err(400, nc.error);
+        var items = loadContent();
+        var nowIso = new Date().toISOString();
+        nc.item.id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        nc.item.createdAt = nowIso;
+        nc.item.updatedAt = nowIso;
+        nc.item.author = currentUser().name;
+        items.push(nc.item);
+        saveContent(items);
+        logContent('新增内容《' + nc.item.title + '》· 本机');
+        return ok(200, { item: publicContent(nc.item), pending: true });
+      });
+    }
+
+    var mContent = url.match(/^\/api\/content\/([^\/]+)$/);
+    if (mContent && method === 'PUT') {
+      if (!isAdmin()) return err(403, '仅管理员可编辑内容');
+      var cid = mContent[1];
+      return withContent(function () {
+        var items2 = loadContent();
+        var ci = items2.filter(function (x) { return x.id === cid; })[0];
+        if (!ci) return err(404, '内容不存在');
+        var vc = validateContent(body, ci);
+        if (vc.error) return err(400, vc.error);
+        ci.title = vc.item.title;
+        ci.type = vc.item.type;
+        ci.status = vc.item.status;
+        ci.owner = vc.item.owner;
+        ci.channel = vc.item.channel;
+        ci.body = vc.item.body;
+        ci.link = vc.item.link;
+        ci.updatedAt = new Date().toISOString();
+        ci.author = ci.author || currentUser().name;
+        saveContent(items2);
+        logContent('编辑内容《' + ci.title + '》· 本机');
+        return ok(200, { item: publicContent(ci), pending: true });
+      });
+    }
+
+    if (mContent && method === 'DELETE') {
+      if (!isAdmin()) return err(403, '仅管理员可删除内容');
+      var did = mContent[1];
+      return withContent(function () {
+        var items3 = loadContent();
+        var di = items3.filter(function (x) { return x.id === did; })[0];
+        if (!di) return err(404, '内容不存在');
+        // 仓库里已存在的条目删不掉（合并会还原），改加墓碑：导出后全站同步删除
+        var inSharedC = contentStore.inShared(di);
+        saveContent(items3.filter(function (x) { return x.id !== did; }));
+        if (inSharedC) contentStore.tombstone(di);
+        logContent('删除内容《' + di.title + '》· 本机');
+        return ok(200, { pending: true });
+      });
+    }
+
+    if (url === '/api/content/export' && method === 'GET') {
+      if (!isAdmin()) return err(403, '需要管理员权限');
+      return withContent(function () {
+        var cPayload = contentStore.exportPayload();
+        return ok(200, {
+          payload: cPayload,
+          stats: { total: loadContent().length, exported: cPayload.items.length, deleted: cPayload.deleted.length }
+        });
+      });
     }
 
     /* ── 角色配置（admin）──────────────────────── */
@@ -534,8 +618,9 @@ var API = (function () {
   }
 
   /* ── 对外 API（与原后端同签名）────────────── */
-  /* 页面一打开就预热共享名单，让登录/用户列表拿到的都是最新数据 */
+  /* 页面一打开就预热共享名单与内容清单，让登录/列表拿到的都是最新数据 */
   try { ensureRemote(); } catch (e) { /* 忽略 */ }
+  try { contentStore.ready(); } catch (e) { /* 忽略 */ }
 
   return {
     get:  function (u) { return request('GET', u); },
@@ -550,9 +635,17 @@ var API = (function () {
     clear: clear,
 
     /* 共享名单（data/users.json）状态与手动刷新 */
-    remote: function () { return REMOTE; },
+    remote: function () { return usersStore.status(); },
     remoteReady: function () { return ensureRemote(); },   // 等名单拉取落地（含失败）后再读 remote()
     refreshRemote: function () { return ensureRemote(true); },
+
+    /* 内容表（data/content.json）状态与手动刷新 */
+    contentRemote: function () { return contentStore.status(); },
+    contentReady: function () { return contentStore.ready(); },
+    refreshContent: function () { return contentStore.refresh(); },
+    contentTypes: function () { return CONTENT_TYPES.slice(); },
+    contentStatus: function () { return CONTENT_STATUS.slice(); },
+
     isSecure: isSecureContext,
     insecureMsg: INSECURE_MSG
   };

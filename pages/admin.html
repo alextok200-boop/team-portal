@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>管理后台 · 团队门户</title>
-<link rel="stylesheet" href="css/portal.css?v=2.3.0">
+<link rel="stylesheet" href="css/portal.css?v=2.5.0">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
 </head>
 <body>
@@ -88,23 +88,11 @@
   </section>
 </main>
 
-<!-- 弹窗 -->
-<div class="modal" id="modal">
-  <div class="modal-box">
-    <h3 id="modalTitle">编辑</h3>
-    <form id="modalForm"><div id="modalBody"></div>
-      <div class="modal-foot">
-        <button type="button" class="btn btn-ghost" id="modalCancel">取消</button>
-        <button type="submit" class="btn btn-primary" id="modalSave">保存</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script src="js/config/roles.js?v=2.0.0"></script>
-<script src="js/api.js?v=2.4.0"></script>
+<script src="js/datastore.js?v=2.5.0"></script>
+<script src="js/api.js?v=2.5.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
-<script src="js/portal.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.5.0"></script>
 <script>
 (function () {
   'use strict';
@@ -125,24 +113,11 @@
     document.getElementById('panel-' + t.dataset.tab).classList.add('active');
   });
 
-  /* ── 弹窗 ───────────────────────────────────── */
-  var modal = document.getElementById('modal');
-  var modalForm = document.getElementById('modalForm');
-  var onSubmit = null;
-
+  /* ── 弹窗（统一用 Portal.modal，页面不再自己维护 markup）───── */
   function openModal(title, bodyHtml, submitFn) {
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalBody').innerHTML = bodyHtml;
-    onSubmit = submitFn;
-    modal.classList.add('show');
+    Portal.modal({ title: title, body: bodyHtml, onSubmit: submitFn });
   }
-  function closeModal() { modal.classList.remove('show'); onSubmit = null; }
-  document.getElementById('modalCancel').addEventListener('click', closeModal);
-  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-  modalForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    if (onSubmit) onSubmit();
-  });
+  function closeModal() { Portal.closeModal(); }
 
   function roleOptions(selected) {
     return Object.keys(ROLES).map(function (k) {
@@ -340,7 +315,7 @@
     body += '</div>';
 
     openModal('编辑角色权限 · ' + r.name, body, function () {
-      var checked = [].slice.call(document.querySelectorAll('#modalBody input[type=checkbox]:checked')).map(function (x) { return x.value; });
+      var checked = [].slice.call(document.querySelectorAll('#portalModalBody input[type=checkbox]:checked')).map(function (x) { return x.value; });
       API.put('/api/roles/' + k, {
         name: document.getElementById('rName').value.trim(),
         desc: document.getElementById('rDesc').value.trim(),

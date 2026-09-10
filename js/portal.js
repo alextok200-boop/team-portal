@@ -102,6 +102,55 @@ var Portal = (function () {
     setTimeout(function () { el.remove(); }, 2600);
   }
 
+  /* ── 通用弹窗（admin / content 等页共用，页面无需自己写 markup）── */
+  var _onSubmit = null;
+
+  function closeModal() {
+    var m = document.getElementById('portalModal');
+    if (m) m.classList.remove('show');
+    _onSubmit = null;
+  }
+
+  function ensureModal() {
+    var m = document.getElementById('portalModal');
+    if (m) return m;
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="modal" id="portalModal">' +
+        '<div class="modal-box">' +
+          '<h3 id="portalModalTitle">编辑</h3>' +
+          '<form id="portalModalForm">' +
+            '<div id="portalModalBody"></div>' +
+            '<div class="modal-foot">' +
+              '<button type="button" class="btn btn-ghost" id="portalModalCancel">取消</button>' +
+              '<button type="submit" class="btn btn-primary" id="portalModalSave">保存</button>' +
+            '</div>' +
+          '</form>' +
+        '</div>' +
+      '</div>');
+    m = document.getElementById('portalModal');
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(); });
+    document.getElementById('portalModalCancel').addEventListener('click', closeModal);
+    document.getElementById('portalModalForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (_onSubmit) _onSubmit();
+    });
+    return m;
+  }
+
+  /* modal({ title, body, submitText, onSubmit }) → { close } */
+  function modal(opts) {
+    opts = opts || {};
+    var m = ensureModal();
+    document.getElementById('portalModalTitle').textContent = opts.title || '';
+    document.getElementById('portalModalBody').innerHTML = opts.body || '';
+    document.getElementById('portalModalSave').textContent = opts.submitText || '保存';
+    _onSubmit = opts.onSubmit || null;
+    m.classList.add('show');
+    var first = document.querySelector('#portalModalBody input, #portalModalBody textarea, #portalModalBody select');
+    if (first) setTimeout(function () { try { first.focus(); } catch (e) { /* ignore */ } }, 30);
+    return { close: closeModal, root: m };
+  }
+
   /* ── 工具 ────────────────────────────────────── */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -135,6 +184,8 @@ var Portal = (function () {
     boot: boot,
     loadConfig: loadConfig,
     renderNav: renderNav,
+    modal: modal,
+    closeModal: closeModal,
     toast: toast,
     esc: esc,
     fmtTime: fmtTime,

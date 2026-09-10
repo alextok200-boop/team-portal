@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>内容管理 · 团队门户</title>
-<link rel="stylesheet" href="css/portal.css?v=2.3.0">
+<link rel="stylesheet" href="css/portal.css?v=2.5.0">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
 </head>
 <body>
@@ -15,51 +15,297 @@
   <h1 class="page-title">内容管理</h1>
   <p class="page-sub">内容创建 · 维护 · 发布状态</p>
 
-  <div class="notice">
+  <div class="notice" id="permNotice">
     <strong>权限要求：</strong>管理员、团队成员
   </div>
 
-  <div class="notice">
-    <strong>权限提示：</strong>管理员可创建与编辑；团队成员为只读视图。
+  <!-- 共享清单加载失败告警（拉不到 data/content.json 时，同事看到的列表是残缺的） -->
+  <div class="notice" id="sharedNotice">
+    清单存在两处：<strong>仓库</strong>（data/content.json，全站可见）与<strong>本机</strong>（你这台浏览器）。
+    门户是纯静态托管，浏览器没有服务端可写 —— 所以在这里新增或编辑后，
+    <strong>必须点「导出内容配置」下载 content.json、覆盖仓库里的 data/content.json 并提交</strong>，同事才看得到。
+    只在本机的改动会在列表里标 <span class="tag tag-pink">待发布</span>。
   </div>
+
+  <div class="toolbar">
+    <input type="search" id="kw" class="input" placeholder="搜索标题 / 负责人 / 渠道">
+    <select id="statusFilter" class="input" style="min-width:132px"></select>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost" id="btnExport" hidden>导出内容配置</button>
+    <button class="btn btn-primary" id="btnNew" hidden>+ 新增内容</button>
+  </div>
+
+  <div id="pendingBar" hidden style="margin-bottom:14px"></div>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>标题</th><th>类型</th><th>更新时间</th><th>状态</th><th>操作</th></tr></thead>
-      <tbody id="contentTable"></tbody>
+      <thead>
+        <tr>
+          <th>标题</th><th style="width:74px">类型</th><th style="width:88px">状态</th>
+          <th style="width:104px">渠道</th><th style="width:132px">更新时间</th>
+          <th style="width:80px">来源</th><th style="width:170px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="7" class="loading">加载中…</td></tr></tbody>
     </table>
   </div>
-
-
 </main>
 
 <script src="js/config/roles.js?v=2.0.0"></script>
-<script src="js/api.js?v=2.4.0"></script>
+<script src="js/datastore.js?v=2.5.0"></script>
+<script src="js/api.js?v=2.5.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
-<script src="js/portal.js?v=2.0.0"></script>
+<script src="js/portal.js?v=2.5.0"></script>
 <script>
 (function () {
+  'use strict';
+
+  var esc = Portal.esc;
+  var ITEMS = [];
+  var TYPES = [];
+  var STATUS = [];
+  var CAN_EDIT = false;
+
+  var STATUS_TAG = { '已发布': 'tag-green', '草稿': 'tag-blue', '已归档': 'tag-gray' };
+  var TYPE_ICON = { '文档': '📄', '图片': '🖼️', '视频': '🎬', '链接': '🔗' };
+
+  /* ══ 渲染 ══ */
+  function filtered() {
+    var kw = document.getElementById('kw').value.trim().toLowerCase();
+    var st = document.getElementById('statusFilter').value;
+    return ITEMS.filter(function (c) {
+      if (st && c.status !== st) return false;
+      if (!kw) return true;
+      return [c.title, c.owner, c.channel, c.type].some(function (v) {
+        return String(v || '').toLowerCase().indexOf(kw) !== -1;
+      });
+    });
+  }
+
+  function srcTag(c) {
+    var local = c.source === 'local';
+    return '<span class="tag ' + (local ? 'tag-pink' : 'tag-green') + '">' +
+      (local ? '待发布' : '仓库') + '</span>';
+  }
+
+  function render() {
+    var list = filtered();
+    var tb = document.getElementById('rows');
+    if (!ITEMS.length) {
+      tb.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="icon">📭</div>' +
+        '还没有内容条目' + (CAN_EDIT
+          ? '<div class="muted" style="margin-top:8px">点右上角「+ 新增内容」开始。新增后记得导出并提交，同事才看得到。</div>'
+          : '<div class="muted" style="margin-top:8px">等管理员在仓库清单里添加。</div>') +
+        '</div></td></tr>';
+      return;
+    }
+    if (!list.length) {
+      tb.innerHTML = '<tr><td colspan="7" class="loading">没有匹配的内容</td></tr>';
+      return;
+    }
+    tb.innerHTML = list.map(function (c) {
+      var link = c.link
+        ? ' <a href="' + esc(c.link) + '" target="_blank" rel="noopener" class="muted" style="font-size:12px">链接↗</a>'
+        : '';
+      return '<tr>' +
+        '<td><strong>' + esc(c.title) + '</strong>' + link +
+          (c.owner
+            ? '<div class="muted" style="font-size:12px;margin-top:3px">' + esc(c.owner) +
+              (c.channel ? ' · ' + esc(c.channel) : '') + '</div>'
+            : '') + '</td>' +
+        '<td>' + (TYPE_ICON[c.type] || '') + ' ' + esc(c.type) + '</td>' +
+        '<td><span class="tag ' + (STATUS_TAG[c.status] || 'tag-gray') + '">' + esc(c.status) + '</span></td>' +
+        '<td class="muted">' + esc(c.channel || '—') + '</td>' +
+        '<td class="mono muted">' + esc(Portal.fmtTime(c.updatedAt)) + '</td>' +
+        '<td>' + srcTag(c) + '</td>' +
+        '<td class="row-actions">' +
+          '<button class="btn-mini" data-act="view" data-id="' + esc(c.id) + '">查看</button>' +
+          (CAN_EDIT
+            ? '<button class="btn-mini" data-act="edit" data-id="' + esc(c.id) + '">编辑</button>' +
+              '<button class="btn-mini danger" data-act="del" data-id="' + esc(c.id) + '">删除</button>'
+            : '<span class="muted" style="font-size:12px">只读</span>') +
+        '</td></tr>';
+    }).join('');
+  }
+
+  function renderPending() {
+    var n = ITEMS.filter(function (c) { return c.source === 'local'; }).length;
+    var bar = document.getElementById('pendingBar');
+    if (!n) { bar.hidden = true; bar.innerHTML = ''; return; }
+    bar.hidden = false;
+    bar.className = 'alert alert-error show';
+    bar.style.textAlign = 'left';
+    bar.innerHTML = '⚠️ 本机有 <strong>' + n + '</strong> 条改动尚未发布到仓库 —— 同事看不到。' +
+      '点右上角「导出内容配置」下载后覆盖仓库 <code>data/content.json</code> 并提交即可全站生效。';
+  }
+
+  function renderSharedNotice() {
+    var el = document.getElementById('sharedNotice');
+    if (!el) return;
+    Promise.resolve(API.contentReady ? API.contentReady() : null).then(function () {
+      var st = API.contentRemote ? API.contentRemote() : {};
+      if (!st.error) return;
+      el.className = 'alert alert-error show';
+      el.style.textAlign = 'left';
+      el.innerHTML = '⚠️ 共享清单 <code>data/content.json</code> 加载失败（' + esc(st.error) + '）。' +
+        '仓库里的内容当前显示不出来，请检查文件是否存在 / 路径是否正确。' +
+        '<button class="btn-mini" id="btnRetryContent">重试</button>';
+      var rb = document.getElementById('btnRetryContent');
+      if (rb) rb.addEventListener('click', function () { API.refreshContent().then(load); });
+    });
+  }
+
+  function load() {
+    return API.get('/api/content').then(function (res) {
+      if (!res.ok) { Portal.toast(res.error || '加载失败', 'error'); return; }
+      ITEMS = res.items || [];
+      TYPES = res.types || TYPES;
+      STATUS = res.status || STATUS;
+      CAN_EDIT = !!res.canEdit;
+      document.getElementById('permNotice').innerHTML =
+        '<strong>权限提示：</strong>' + (CAN_EDIT
+          ? '你是管理员，可新增 / 编辑 / 删除；改动先落在本机，导出并提交后全站生效。'
+          : '团队成员为<strong>只读</strong>视图，可查看内容详情。');
+      document.getElementById('btnNew').hidden = !CAN_EDIT;
+      document.getElementById('btnExport').hidden = !CAN_EDIT;
+      render();
+      renderPending();
+    });
+  }
+
+  /* ══ 表单 ══ */
+  function opt(v, cur) {
+    return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>';
+  }
+
+  function formHtml(c) {
+    c = c || {};
+    return '<div class="field"><label>标题</label>' +
+        '<input id="fTitle" maxlength="80" placeholder="如：KONLLEN 双十一主图组" value="' + esc(c.title || '') + '"></div>' +
+      '<div style="display:flex;gap:14px">' +
+        '<div class="field" style="flex:1"><label>类型</label><select id="fType">' +
+          TYPES.map(function (t) { return opt(t, c.type || TYPES[0]); }).join('') + '</select></div>' +
+        '<div class="field" style="flex:1"><label>状态</label><select id="fStatus">' +
+          STATUS.map(function (s) { return opt(s, c.status || STATUS[0]); }).join('') + '</select></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:14px">' +
+        '<div class="field" style="flex:1"><label>负责人</label>' +
+          '<input id="fOwner" maxlength="20" placeholder="如：张三" value="' + esc(c.owner || '') + '"></div>' +
+        '<div class="field" style="flex:1"><label>渠道</label>' +
+          '<input id="fChannel" maxlength="20" placeholder="如：抖音 / 亚马逊" value="' + esc(c.channel || '') + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>说明 / 正文</label>' +
+        '<textarea id="fBody" maxlength="2000" placeholder="内容要点、脚本大纲、投放要求…">' + esc(c.body || '') + '</textarea></div>' +
+      '<div class="field"><label>外链（可选）</label>' +
+        '<input id="fLink" placeholder="https://… 或 /pages/xxx.html" value="' + esc(c.link || '') + '">' +
+        '<div class="hint">需以 http(s):// 或 / 开头</div></div>';
+  }
+
+  function readForm() {
+    return {
+      title: document.getElementById('fTitle').value.trim(),
+      type: document.getElementById('fType').value,
+      status: document.getElementById('fStatus').value,
+      owner: document.getElementById('fOwner').value.trim(),
+      channel: document.getElementById('fChannel').value.trim(),
+      body: document.getElementById('fBody').value,
+      link: document.getElementById('fLink').value.trim()
+    };
+  }
+
+  function openNew() {
+    Portal.modal({
+      title: '新增内容', body: formHtml(null), submitText: '创建',
+      onSubmit: function () {
+        API.post('/api/content', readForm()).then(function (res) {
+          if (!res.ok) return Portal.toast(res.error || '创建失败', 'error');
+          Portal.toast('已创建（仅本机生效，请导出并提交）');
+          Portal.closeModal(); load();
+        });
+      }
+    });
+  }
+
+  function openEdit(c) {
+    Portal.modal({
+      title: '编辑内容 · ' + c.title, body: formHtml(c), submitText: '保存',
+      onSubmit: function () {
+        API.put('/api/content/' + encodeURIComponent(c.id), readForm()).then(function (res) {
+          if (!res.ok) return Portal.toast(res.error || '保存失败', 'error');
+          Portal.toast('已保存（仅本机生效，请导出并提交）');
+          Portal.closeModal(); load();
+        });
+      }
+    });
+  }
+
+  function openView(c) {
+    var rows = [
+      ['类型', c.type], ['状态', c.status], ['负责人', c.owner || '—'],
+      ['渠道', c.channel || '—'], ['更新于', Portal.fmtTime(c.updatedAt)], ['创建者', c.author || '—']
+    ];
+    Portal.modal({
+      title: c.title, submitText: '关闭',
+      body: '<div style="font-size:13px;line-height:1.9;color:var(--text-dim)">' +
+          rows.map(function (r) {
+            return '<div><span style="display:inline-block;width:66px;color:var(--text-mute)">' + r[0] +
+              '</span>' + esc(r[1]) + '</div>';
+          }).join('') + '</div>' +
+        '<div class="field" style="margin-top:16px"><label>说明 / 正文</label>' +
+          '<div style="white-space:pre-wrap;line-height:1.75;font-size:14px">' +
+          (c.body ? esc(c.body) : '<span class="muted">（无）</span>') + '</div></div>' +
+        (c.link
+          ? '<div style="margin-top:12px"><a href="' + esc(c.link) + '" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">打开外链 ↗</a></div>'
+          : ''),
+      onSubmit: function () { Portal.closeModal(); }
+    });
+  }
+
+  function exportJson() {
+    API.get('/api/content/export').then(function (res) {
+      if (!res.ok) return Portal.toast(res.error || '导出失败', 'error');
+      var s = res.stats || {};
+      var url = URL.createObjectURL(new Blob([JSON.stringify(res.payload, null, 2) + '\n'], { type: 'application/json' }));
+      var a = document.createElement('a');
+      a.href = url; a.download = 'content.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      Portal.toast('已导出 ' + s.exported + ' 条 → 覆盖 data/content.json 并提交');
+    });
+  }
+
+  /* ══ 事件 ══ */
+  document.getElementById('rows').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    var c = ITEMS.filter(function (x) { return x.id === b.dataset.id; })[0];
+    if (!c) return;
+    if (b.dataset.act === 'view') return openView(c);
+    if (b.dataset.act === 'edit') return openEdit(c);
+    if (b.dataset.act === 'del') {
+      if (!confirm('确认删除内容「' + c.title + '」？此操作不可撤销。')) return;
+      API.del('/api/content/' + encodeURIComponent(c.id)).then(function (res) {
+        if (!res.ok) return Portal.toast(res.error || '删除失败', 'error');
+        Portal.toast('已删除（仅本机生效，请导出并提交）');
+        load();
+      });
+    }
+  });
+
+  document.getElementById('kw').addEventListener('input', render);
+  document.getElementById('statusFilter').addEventListener('change', render);
+  document.getElementById('btnNew').addEventListener('click', openNew);
+  document.getElementById('btnExport').addEventListener('click', exportJson);
+
+  /* ══ 启动 ══ */
   Portal.boot({ title: '团队门户' }).then(function (u) {
     if (!u) return;
-    var canEdit = u.role === 'admin';
-    var rows = [
-      { t: '示例内容条目一', k: '文档', d: '—', st: 'tag-green', s: '已发布' },
-      { t: '示例内容条目二', k: '文档', d: '—', st: 'tag-blue',  s: '草稿' },
-      { t: '示例内容条目三', k: '图片', d: '—', st: 'tag-green', s: '已发布' }
-    ];
-    var tb = document.getElementById('contentTable');
-    rows.forEach(function (r) {
-      tb.insertAdjacentHTML('beforeend',
-        '<tr>' +
-          '<td>' + Portal.esc(r.t) + '</td>' +
-          '<td>' + r.k + '</td>' +
-          '<td>' + r.d + '</td>' +
-          '<td><span class="tag ' + r.st + '">' + r.s + '</span></td>' +
-          '<td>' + (canEdit
-              ? '<button class="btn btn-ghost btn-sm" onclick="Portal.toast(\'示例：编辑功能待接入\')">编辑</button>'
-              : '<span class="muted">只读</span>') + '</td>' +
-        '</tr>');
-    });
+    STATUS = API.contentStatus ? API.contentStatus() : [];
+    TYPES = API.contentTypes ? API.contentTypes() : [];
+    document.getElementById('statusFilter').innerHTML =
+      '<option value="">全部状态</option>' + STATUS.map(function (s) { return opt(s, ''); }).join('');
+    renderSharedNotice();
+    load();
   });
 })();
 </script>
