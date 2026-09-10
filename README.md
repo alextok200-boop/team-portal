@@ -37,7 +37,7 @@
 
 ```
 team-portal/
-├── index.html              # 入口（智能跳转）
+├── index.html              # 首页（加入我们展示 + 视频背景 + 右上角登录按钮）
 ├── login.html              # 登录页
 ├── css/portal.css          # 门户样式（深色霓虹）
 ├── js/
@@ -46,6 +46,8 @@ team-portal/
 │   ├── portal.js           # 顶栏 / 守卫 / 提示
 │   └── config/roles.js     # 默认角色 + 默认用户（密码哈希）
 ├── pages/                  # 业务页面
+│   ├── board.html          # 业务数据看板（登录后通用首页，指标卡可钻取）
+│   ├── tables.html         # 数据中心（9 张表浏览 / 搜索 / 钻取）
 │   ├── dashboard.html      # 工作台
 │   ├── admin.html          # 管理后台（用户/角色/数据/日志）
 │   ├── data.html           # 日报数据（钉钉快照）
@@ -57,9 +59,25 @@ team-portal/
 │   ├── logs.html           # 登录日志
 │   ├── denied.html         # 无权访问
 │   └── 404.html
-├── data/daily.json         # 日报数据快照（钉钉 AI 表格）
-└── assets/favicon.svg
+├── data/daily.json              # 日报数据快照（钉钉 AI 表格，Actions 自动更新）
+├── assets/showcase.mp4          # 首页背景视频（1080p H.264，约 3.9MB）
+├── assets/favicon.svg           # 站点图标
+├── scripts/fetch-openapi.js     # 钉钉 OpenAPI 抓取脚本（纯 OpenAPI，无需本机）
+├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:05）
+├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
+└── .nojekyll                    # 防 Jekyll 处理
 ```
+
+**导航顺序**（登录后顶栏）：业务数据看板 → 工作台 → 日报数据 → 数据中心 → 数据指标 → 内容管理 → 成员管理 → 加入我们 → 管理后台 → 系统设置 → 登录日志
+
+**角色权限**（`js/config/roles.js` 的 `DEFAULT_ROLES`）：
+
+| 角色 | 可访问页面 |
+|---|---|
+| `admin` | `['*']` 全部 |
+| `team_leader` | board / dashboard / data / tables / metrics / members / careers |
+| `member` | board / dashboard / data / tables / content / careers |
+
 
 ## ⚙️ 关键实现说明
 
@@ -81,12 +99,43 @@ team-portal/
 - 会话：localStorage 存令牌（8 小时过期）
 - 用户/角色/日志：localStorage 持久化（首次用 roles.js 默认值）
 
-### 3. 日报数据（静态快照）
+### 3. 日报数据（钉钉自动抓取链路）
 
-`data/daily.json` 是钉钉 AI 表格的静态快照。更新方式：
-1. 在 `C:\Users\alext\Web\login-portal` 项目里运行 `node scripts/fetch-dingtalk.js`
-2. 把生成的 `data/daily.json` 复制到本项目的 `data/` 目录
-3. 提交推送，线上即更新
+`data/daily.json` 是钉钉 AI 表格《电商营销备战-日报追踪表》的静态快照，**全自动更新**：
+
+```
+钉钉 AI 表格 → GitHub Actions（每天 11:05）→ scripts/fetch-openapi.js
+             → data/daily.json → 自动 commit/push → 网站自动更新
+```
+
+- 数据源 baseId：`OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4`（共 17 张表，抓取其中 9 张）
+- 定时器：`.github/workflows/fetch.yml`，cron `5 3 * * *`（UTC 03:05 = 北京 11:05），支持手动 `workflow_dispatch`
+- 所需 4 个 GitHub Secret：`DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET` / `DINGTALK_OPERATOR_ID` / `DINGTALK_BASE_ID`
+
+> ⚠️ **钉钉 OpenAPI 拿不到「公式 / 查找引用 / 关联引用 / 自动编号」字段**（官方限制）。
+> 日报总览的 GMV / 订单 / UV 是公式字段，所以看板核心指标**改从「分店铺日报」聚合**
+> （分店铺的 GMV / 订单 / UV 是手工录入，可以拿到）。
+
+手动补跑：Actions 页面 → `fetch` workflow → `Run workflow`。
+
+### 4. 本地 Git 同步（重要）
+
+本项目的推送有时必须走 **Git Data API 绕行**（blob → tree → commit → ref），
+因为 `git push` 走 github.com:443 会被 reset。**API 推送不会回写本地 git**，
+长期下来本地历史会与远端分叉（本地 `git log` 看不到真实版本、`git pull` 冲突、本地无法当回滚点）。
+
+因此：**凡做过 API 推送，或不确定本地是否落后，跑一次**
+
+```bash
+bash tools/sync-local.sh            # 有未提交改动会自动打包备份到 ../_backup/ 再对齐
+bash tools/sync-local.sh --check    # 只报告差多少，不动文件（落后时退出码 2）
+```
+
+该脚本用 `FETCH_HEAD` 作为对齐目标（不强依赖 remote-tracking ref），
+并在 `git update-ref` 静默失效的受限环境下直写 `.git/refs/remotes/origin/main` 兜底。
+
+> 正常网络下 `git push` / `git pull` 可以直接用；只有 443 被 reset 时才需要 API 绕行。
+> 无论走哪条路，推送后养成跑一次 `sync-local.sh` 的习惯。
 
 ## 📤 部署（GitHub Pages）
 
@@ -99,5 +148,10 @@ team-portal/
 
 ## 📝 变更日志
 
+- **v1.1.0**（2026-09-10）：
+  - 新增 `tools/sync-local.sh` —— 本地仓库对齐远端 main，含受限环境下 remote-tracking ref 兜底直写；修复本地 git 与远端历史分叉（本地曾只有 1 个 commit，远端已 8 个）。
+  - README 补齐：业务数据看板 / 数据中心 / 钉钉自动抓取链路 / 角色权限表 / 完整目录结构。
+  - **修正过时说明**：原「日报数据更新方式」仍写手工从 login-portal 拷 JSON，实际早已改为 GitHub Actions 自动抓取。
 - **静态版 v1.0.0**（2026-09-10）：由 login-portal v2.0.0 改造为纯前端静态版，
   适配 GitHub Pages 子路径部署，登录/权限/数据全部本地化。
+
