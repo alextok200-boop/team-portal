@@ -2,9 +2,21 @@ name: 钉钉日报数据抓取
 
 on:
   schedule:
-    # UTC 03:05 = 北京时间 11:05（每日）
+    # UTC 03:05 = 北京时间 11:05（抓当天上午录入）
     - cron: '5 3 * * *'
+    # UTC 10:30 = 北京时间 18:30（抓当天下午录入，晚班也能看到当天数据）
+    - cron: '30 10 * * *'
   workflow_dispatch:
+    inputs:
+      row_cap:
+        description: '每表行数上限（留空用默认 4000）'
+        required: false
+        default: ''
+
+# 同一时刻只跑一个抓取，避免两次提交撞车
+concurrency:
+  group: fetch-daily
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -12,9 +24,12 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 设置 Node.js
         uses: actions/setup-node@v4
@@ -27,6 +42,7 @@ jobs:
           DINGTALK_APP_SECRET: ${{ secrets.DINGTALK_APP_SECRET }}
           DINGTALK_OPERATOR_ID: ${{ secrets.DINGTALK_OPERATOR_ID }}
           DINGTALK_BASE_ID: ${{ secrets.DINGTALK_BASE_ID }}
+          DINGTALK_ROW_CAP: ${{ github.event.inputs.row_cap }}
         run: node scripts/fetch-openapi.js
 
       - name: 提交数据（若有变化）
@@ -36,7 +52,9 @@ jobs:
           git add data/daily.json
           if git diff --cached --quiet; then
             echo "数据无变化，跳过提交"
-          else
-            git commit -m "chore: 更新日报数据 $(date -u +%F)"
-            git push
+            exit 0
           fi
+          git commit -m "chore: 更新日报数据 $(TZ=Asia/Shanghai date +%F\ %H:%M)"
+          # 远端可能已被其它推送（含人工 API 推送）推进，先 rebase 再推
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}"
+          git push

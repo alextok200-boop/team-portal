@@ -9,6 +9,7 @@
      DINGTALK_APP_SECRET   钉钉企业内部应用 AppSecret
      DINGTALK_OPERATOR_ID  操作人 unionId（必填）
      DINGTALK_BASE_ID      多维表 ID（默认已填）
+     DINGTALK_ROW_CAP      每表行数上限（可选，默认 4000）
 
    权限要求：应用需开通「AI 表格应用读权限」并已发布。
 
@@ -16,6 +17,12 @@
      - access_token: POST /v1.0/oauth2/accessToken
      - 字段列表:     GET  /v1.0/notable/bases/{baseId}/sheets/{sheetId}/fields?operatorId=
      - 记录列表:     POST /v1.0/notable/bases/{baseId}/sheets/{sheetId}/records/list?operatorId=
+
+   版本：v1.2.0（2026-09-10）
+     · 行数上限 200 → 4000（原上限导致 domestic/crossborder/ads/content 四表被静默截断）
+     · 新增 truncated / filledRows / error 元数据，截断与空表不再无声
+     · HTTP 层加指数退避重试（网络抖动不再整表失败）
+     · 截断改为精确切齐（原来会超上限最多 100 行）
    ============================================================ */
 
 'use strict';
@@ -33,7 +40,13 @@ const BASE_ID = process.env.DINGTALK_BASE_ID || 'OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw
 
 const SOURCE_NAME = '电商营销备战-日报追踪表';
 const OUT_FILE = path.join(__dirname, '..', 'data', 'daily.json');
-const MAX_ROWS_PER_TABLE = 200;   // 每表最多取 200 行（避免数据文件过大）
+
+/* ── 抓取参数 ───────────────────────────────────────────── */
+const PAGE_SIZE = 100;                                        // 单次请求条数（接口上限 100）
+const ROW_CAP = Number(process.env.DINGTALK_ROW_CAP || 4000); // 每表行数上限
+const MAX_PAGES = Math.ceil(ROW_CAP / PAGE_SIZE) + 2;
+const RETRY = 3;                                              // 单请求最大尝试次数
+const RETRY_BASE_MS = 800;
 
 /* ── 抓取的表（key → 表 ID / 中文名 / 分组）──────────────── */
 const TABLES = [
@@ -48,8 +61,37 @@ const TABLES = [
   { key: 'perf',        id: 'mVmsNph',                name: '15.负责人业绩日报',    group: '业绩' }
 ];
 
-/* ── HTTP 封装 ──────────────────────────────────────────── */
-async function http(method, url, body, token) {
+/* 结构字段：只填这些的行算「空占位行」（表里预建了整年的日期行） */
+const STRUCTURAL = ['日期', '星期', '促销节点', '店铺', '店铺名', '平台', '备注', '父记录', '评估周'];
+
+/* ── 工具 ───────────────────────────────────────────────── */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isRetriable(msg) {
+  return /HTTP (5\d\d|429)|fetch failed|ETIMEDOUT|ECONNRESET|EAI_AGAIN|network|socket hang up/i.test(String(msg));
+}
+
+function isNumericCell(v) {
+  if (typeof v === 'number') return true;
+  return /^-?\d+(\.\d+)?$/.test(String(v == null ? '' : v).trim());
+}
+
+/* 「有效行」= 至少有一个数值字段非空且非 0 */
+function rowHasData(row) {
+  const keys = Object.keys(row);
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (STRUCTURAL.indexOf(k) !== -1) continue;
+    const v = row[k];
+    if (v === null || v === undefined || v === '') continue;
+    if (isNumericCell(v) && Number(v) !== 0) return true;
+    if (!isNumericCell(v)) return true;   // 非数值但有内容（状态/文本）也算有数据
+  }
+  return false;
+}
+
+/* ── HTTP 封装（带重试）─────────────────────────────────── */
+async function httpOnce(method, url, body, token) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['x-acs-dingtalk-access-token'] = token;
   const opt = { method, headers };
@@ -61,6 +103,22 @@ async function http(method, url, body, token) {
     throw new Error(method + ' ' + url + ' -> HTTP ' + r.status + ': ' + text.slice(0, 400));
   }
   return json;
+}
+
+async function http(method, url, body, token) {
+  let lastErr;
+  for (let i = 0; i < RETRY; i++) {
+    try {
+      return await httpOnce(method, url, body, token);
+    } catch (e) {
+      lastErr = e;
+      if (!isRetriable(e.message) || i === RETRY - 1) throw e;
+      const wait = RETRY_BASE_MS * Math.pow(2, i);
+      console.warn('\n    ↻ 重试 ' + (i + 1) + '/' + (RETRY - 1) + '（' + wait + 'ms）：' + e.message.split('\n')[0]);
+      await sleep(wait);
+    }
+  }
+  throw lastErr;
 }
 
 /* ── 获取 access_token ───────────────────────────────────── */
@@ -102,12 +160,14 @@ async function fetchTable(token, t) {
     console.warn('  [警告] 字段读取失败 ' + t.name + '：' + e.message.split('\n')[0]);
   }
 
-  // 2. 记录列表（分页，calcFields 拉公式字段，行数上限）
+  // 2. 记录列表（分页 + 行数上限 + 精确切齐）
   const rows = [];
   let nextToken = '';
-  let guard = 0;
+  let pages = 0;
+  let truncated = false;
+
   do {
-    const body = { maxResults: 100, calcFields: true };
+    const body = { maxResults: PAGE_SIZE, calcFields: true };
     if (nextToken) body.nextToken = nextToken;
     const rr = await http('POST',
       API + '/notable/bases/' + BASE_ID + '/sheets/' + t.id + '/records/list?operatorId=' + OPERATOR_ID,
@@ -125,9 +185,16 @@ async function fetchTable(token, t) {
       rows.push(o);
     });
     nextToken = (rr && rr.nextToken) || '';
-    if (++guard > 50) break;
-    if (rows.length >= MAX_ROWS_PER_TABLE) break; // 行数上限，避免数据过大
-  } while (nextToken);
+    pages++;
+    // 精确切齐到 ROW_CAP；是否截断只看「还有没有下一页」
+    if (rows.length >= ROW_CAP) {
+      if (rows.length > ROW_CAP) rows.length = ROW_CAP;
+      truncated = !!nextToken;
+      break;
+    }
+  } while (nextToken && pages < MAX_PAGES);
+
+  if (pages >= MAX_PAGES && nextToken) truncated = true;
 
   // 3. columns：基础字段 + 记录里出现的额外字段（公式/查找字段）
   const seen = {};
@@ -136,9 +203,13 @@ async function fetchTable(token, t) {
     Object.keys(r).forEach(function (k) { if (!seen[k]) { seen[k] = true; if (fieldNames.indexOf(k) === -1) columns.push(k); } });
   });
 
+  let filledRows = 0;
+  rows.forEach(function (r) { if (rowHasData(r)) filledRows++; });
+
   return {
     key: t.key, name: t.name, group: t.group, tableId: t.id,
-    fieldCount: columns.length, rowCount: rows.length,
+    fieldCount: columns.length, rowCount: rows.length, filledRows: filledRows,
+    truncated: truncated, pagesFetched: pages,
     columns: columns, rows: rows
   };
 }
@@ -154,12 +225,14 @@ async function fetchTable(token, t) {
     process.exit(2);
   }
 
-  console.log('钉钉日报抓取 · ' + SOURCE_NAME + '（baseId=' + BASE_ID + '）\n');
+  console.log('钉钉日报抓取 · ' + SOURCE_NAME + '（baseId=' + BASE_ID + '）');
+  console.log('每表行数上限：' + ROW_CAP + ' · 单页 ' + PAGE_SIZE + ' 条\n');
   const token = await getToken();
   console.log('access_token 获取成功\n');
 
   const results = [];
-  let totalRows = 0, okTables = 0;
+  let totalRows = 0, okTables = 0, filledRowsTotal = 0;
+  const failed = [], truncatedTables = [];
 
   for (let i = 0; i < TABLES.length; i++) {
     const t = TABLES[i];
@@ -168,11 +241,20 @@ async function fetchTable(token, t) {
       const r = await fetchTable(token, t);
       results.push(r);
       totalRows += r.rowCount;
+      filledRowsTotal += r.filledRows;
       if (r.rowCount > 0) okTables++;
-      console.log(r.rowCount + ' 行 / ' + r.fieldCount + ' 字段');
+      if (r.truncated) truncatedTables.push(t.key);
+      console.log(r.rowCount + ' 行（有效 ' + r.filledRows + '）/ ' + r.fieldCount + ' 字段' +
+        (r.truncated ? '  ⚠ 已达上限 ' + ROW_CAP + ' 行，可能截断' : ''));
     } catch (e) {
-      console.log('失败：' + e.message.split('\n')[0]);
-      results.push({ key: t.key, name: t.name, group: t.group, tableId: t.id, fieldCount: 0, rowCount: 0, columns: [], rows: [] });
+      const msg = e.message.split('\n')[0];
+      console.log('失败：' + msg);
+      failed.push({ key: t.key, name: t.name, error: msg });
+      results.push({
+        key: t.key, name: t.name, group: t.group, tableId: t.id,
+        fieldCount: 0, rowCount: 0, filledRows: 0, truncated: false,
+        columns: [], rows: [], error: msg
+      });
     }
   }
 
@@ -187,17 +269,26 @@ async function fetchTable(token, t) {
     source: SOURCE_NAME,
     sourceUrl: 'https://alidocs.dingtalk.com/i/nodes/' + BASE_ID,
     baseId: BASE_ID,
-    limitPerTable: 100,
+    pageSize: PAGE_SIZE,
+    limitPerTable: ROW_CAP,               // 保留旧字段名（admin 页「每表上限」在用）
+    rowCap: ROW_CAP,
     tableCount: results.length,
     okTables: okTables,
     totalRows: totalRows,
+    filledRowsTotal: filledRowsTotal,
+    truncatedTables: truncatedTables,
+    complete: truncatedTables.length === 0 && failed.length === 0,
+    failedTables: failed,
     tables: results
   };
 
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
   fs.writeFileSync(OUT_FILE, JSON.stringify(payload, null, 2), 'utf8');
 
-  console.log('\n完成：' + okTables + '/' + results.length + ' 张表有数据，共 ' + totalRows + ' 行');
+  console.log('\n完成：' + okTables + '/' + results.length + ' 张表有数据，共 ' + totalRows +
+    ' 行（其中有效 ' + filledRowsTotal + ' 行）');
+  if (truncatedTables.length) console.log('⚠ 被截断的表：' + truncatedTables.join(', ') + '（可调大 DINGTALK_ROW_CAP）');
+  if (failed.length) console.log('✗ 失败的表：' + failed.map(function (f) { return f.name; }).join(', '));
   console.log('已写入：' + OUT_FILE + '\n');
 })().catch(function (e) {
   console.error('\n[异常] ' + e.message + '\n');

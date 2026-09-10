@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>业务数据看板 · 团队门户</title>
-<link rel="stylesheet" href="css/portal.css?v=2.1.0">
+<link rel="stylesheet" href="css/portal.css?v=2.2.0">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
 </head>
 <body>
@@ -20,9 +20,50 @@
     <span id="srcTime" style="margin-left:12px"></span>
   </div>
 
+  <p class="data-note" id="dataNote">正在统计…</p>
+
   <!-- 核心指标 -->
   <h2 class="section-h">核心指标</h2>
   <div class="stats" id="coreStats"><div class="stat"><div class="label">加载中</div><div class="value">…</div></div></div>
+
+  <!-- 图① 日 GMV 趋势 -->
+  <h2 class="section-h" style="margin-top:30px">日 GMV 趋势</h2>
+  <div class="chart-card">
+    <div class="chart-head">
+      <h3>国内外每日 GMV</h3>
+      <span class="chart-sub">按分店铺日报「日期」聚合 · 仅统计已录入 GMV 的记录</span>
+    </div>
+    <div class="chart-box chart-box-lg" id="chartTrend"></div>
+  </div>
+
+  <!-- 图② / 图③ -->
+  <div class="chart-grid" style="margin-top:24px">
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>分店铺 GMV Top 10</h3>
+        <span class="chart-sub">国内 + 跨境合并 · 同店多日累计 · X 轴对数刻度（跨店量级差异大）</span>
+      </div>
+      <div class="chart-box" id="chartStore"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>平台 GMV 占比</h3>
+        <span class="chart-sub">按店铺所属平台归类</span>
+      </div>
+      <div class="chart-box" id="chartPlatform"></div>
+    </div>
+  </div>
+
+  <!-- 图④ 负责人业绩 -->
+  <h2 class="section-h" style="margin-top:30px">负责人业绩</h2>
+  <p class="perf-summary" id="perfSummary">加载中…</p>
+  <div class="chart-card">
+    <div class="chart-head">
+      <h3>各负责人 GMV 与净利润（Top 10）</h3>
+      <span class="chart-sub">数据源：15.负责人业绩日报</span>
+    </div>
+    <div class="chart-box" id="chartPerf"></div>
+  </div>
 
   <!-- 分店铺 GMV 排名 -->
   <h2 class="section-h" style="margin-top:30px">分店铺 GMV 排名</h2>
@@ -33,8 +74,8 @@
     </table>
   </div>
 
-  <!-- 负责人业绩 -->
-  <h2 class="section-h" style="margin-top:30px">负责人业绩</h2>
+  <!-- 负责人业绩明细 -->
+  <h2 class="section-h" style="margin-top:30px">负责人业绩明细</h2>
   <div class="table-wrap">
     <table>
       <thead><tr><th>负责人</th><th>平台</th><th>GMV</th><th>净利润</th><th>利润率</th><th>客单价</th><th>认领成单率</th></tr></thead>
@@ -47,144 +88,8 @@
 <script src="js/api.js?v=2.0.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/portal.js?v=2.0.0"></script>
-<script>
-(function () {
-  'use strict';
-  var esc = Portal.esc;
-
-  /* 数字格式化 */
-  function fmtMoney(v) {
-    var n = Number(v);
-    if (isNaN(n)) return '—';
-    return '¥' + n.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
-  }
-  function fmtInt(v) {
-    var n = Number(v);
-    if (isNaN(n)) return '—';
-    return n.toLocaleString('zh-CN');
-  }
-  function fmtPct(v) {
-    var n = Number(v);
-    if (isNaN(n)) return '—';
-    return (n * 100).toFixed(2) + '%';
-  }
-
-  function table(key) {
-    return function (t) { return t.key === key; };
-  }
-
-  Portal.boot({ title: '团队门户' }).then(function (u) {
-    if (!u) return;
-
-    API.get('/api/data/daily').then(function (res) {
-      if (!res.ok || res.empty) {
-        document.getElementById('coreStats').innerHTML =
-          '<div class="empty"><div class="icon">📭</div><div>' + esc(res.message || '暂无数据') + '</div></div>';
-        document.getElementById('storeRows').innerHTML = '<tr><td colspan="7" class="loading">暂无数据</td></tr>';
-        document.getElementById('perfRows').innerHTML = '<tr><td colspan="7" class="loading">暂无数据</td></tr>';
-        return;
-      }
-
-      var D = res.data;
-      var tables = D.tables || [];
-      var byKey = function (k) { return tables.filter(function (t) { return t.key === k; })[0]; };
-
-      document.getElementById('srcBox').style.display = '';
-      document.getElementById('srcName').textContent = D.source;
-      document.getElementById('srcTime').textContent = '最近同步：' + D.fetchedAtLocal;
-
-      /* ── 核心指标：从分店铺日报聚合（日报总览的 GMV 是公式字段，OpenAPI 拿不到）── */
-      var domT = byKey('domestic');
-      var cbT = byKey('crossborder');
-      var agg = { domGmv: 0, domOrders: 0, domUv: 0, crossGmv: 0, crossOrders: 0, crossUv: 0, fee: 0 };
-      [domT, cbT].forEach(function (t) {
-        (t && t.rows || []).forEach(function (r) {
-          var gmv = Number(r['全店GMV']) || 0;
-          var orders = Number(r['订单量']) || 0;
-          var uv = Number(r['UV']) || 0;
-          agg.fee += Number(r['推广费']) || 0;
-          if (t.key === 'domestic') { agg.domGmv += gmv; agg.domOrders += orders; agg.domUv += uv; }
-          else { agg.crossGmv += gmv; agg.crossOrders += orders; agg.crossUv += uv; }
-        });
-      });
-
-      var cards = [
-        { label: '全公司 GMV（累计）', value: fmtMoney(agg.domGmv + agg.crossGmv) },
-        { label: '全公司订单量（累计）', value: fmtInt(agg.domOrders + agg.crossOrders) },
-        { label: '跨境 GMV（累计）', value: fmtMoney(agg.crossGmv) },
-        { label: '国内 GMV（累计）', value: fmtMoney(agg.domGmv) },
-        { label: '全公司推广费（累计）', value: fmtMoney(agg.fee) },
-        { label: 'UV（累计）', value: fmtInt(agg.domUv + agg.crossUv) }
-      ];
-      document.getElementById('coreStats').innerHTML = cards.map(function (c) {
-        return '<a class="stat stat-link" href="tables.html?table=domestic" title="点击查看分店铺明细">' +
-               '<div class="label">' + c.label + '</div>' +
-               '<div class="value">' + c.value + '</div></a>';
-      }).join('');
-
-      /* ── 分店铺 GMV 聚合（国内 + 跨境）────────── */
-      var stores = {};
-      ['domestic', 'crossborder'].forEach(function (key) {
-        var t = byKey(key);
-        (t && t.rows || []).forEach(function (r) {
-          var name = r['店铺名'];
-          var gmv = Number(r['全店GMV']) || 0;
-          if (!name || gmv <= 0) return;
-          if (!stores[name]) stores[name] = { name: name, platform: r['平台'] || '', gmv: 0, orders: 0, uv: 0, conv: null, tableKey: key };
-          stores[name].gmv += gmv;
-          stores[name].orders += Number(r['订单量']) || 0;
-          stores[name].uv += Number(r['UV']) || 0;
-          if (r['转化率'] != null && r['转化率'] !== '') stores[name].conv = r['转化率'];
-        });
-      });
-      var storeList = Object.keys(stores).map(function (k) { return stores[k]; }).sort(function (a, b) { return b.gmv - a.gmv; });
-
-      var storeTb = document.getElementById('storeRows');
-      if (storeList.length) {
-        storeTb.innerHTML = storeList.slice(0, 20).map(function (s, i) {
-          return '<tr class="row-click" data-href="tables.html?table=' + s.tableKey + '&q=' + encodeURIComponent(s.name) + '" title="点击查看该店铺明细">' +
-            '<td class="mono muted">' + (i + 1) + '</td>' +
-            '<td><strong>' + esc(s.name) + '</strong></td>' +
-            '<td><span class="tag tag-blue">' + esc(s.platform) + '</span></td>' +
-            '<td class="num">' + fmtMoney(s.gmv) + '</td>' +
-            '<td class="num">' + fmtInt(s.orders) + '</td>' +
-            '<td class="num">' + fmtInt(s.uv) + '</td>' +
-            '<td class="num">' + fmtPct(s.conv) + '</td></tr>';
-        }).join('');
-      } else {
-        storeTb.innerHTML = '<tr><td colspan="7" class="loading">暂无分店铺数据</td></tr>';
-      }
-
-      /* ── 负责人业绩 ───────────────────────────── */
-      var perf = byKey('perf');
-      var perfRows = (perf && perf.rows || []).filter(function (r) { return Number(r['GMV']) > 0; });
-      var perfTb = document.getElementById('perfRows');
-      if (perfRows.length) {
-        perfTb.innerHTML = perfRows.map(function (r) {
-          return '<tr class="row-click" data-href="tables.html?table=perf&q=' + encodeURIComponent(r['负责人'] || '') + '" title="点击查看该负责人业绩明细">' +
-            '<td><strong>' + esc(r['负责人'] || '—') + '</strong></td>' +
-            '<td><span class="tag tag-green">' + esc(r['平台'] || '—') + '</span></td>' +
-            '<td class="num">' + fmtMoney(r['GMV']) + '</td>' +
-            '<td class="num">' + fmtMoney(r['净利润']) + '</td>' +
-            '<td class="num">' + (r['利润率'] != null ? esc(r['利润率']) + '%' : '—') + '</td>' +
-            '<td class="num">' + fmtMoney(r['客单价']) + '</td>' +
-            '<td class="num">' + (r['认领成单率'] != null ? esc(r['认领成单率']) + '%' : '—') + '</td></tr>';
-        }).join('');
-      } else {
-        perfTb.innerHTML = '<tr><td colspan="7" class="loading">暂无负责人业绩数据</td></tr>';
-      }
-
-      /* ── 行点击钻取（事件委托）────────────────── */
-      ['storeRows', 'perfRows'].forEach(function (id) {
-        document.getElementById(id).addEventListener('click', function (e) {
-          var tr = e.target.closest('tr.row-click');
-          if (tr && tr.dataset.href) location.href = tr.dataset.href;
-        });
-      });
-    });
-  });
-})();
-</script>
+<script src="vendor/echarts.min.js"></script>
+<script src="js/board.js?v=2.2.0"></script>
 
 </body>
 </html>

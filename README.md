@@ -44,6 +44,7 @@ team-portal/
 │   ├── api.js              # 静态版本地数据层（模拟原后端 API）
 │   ├── auth.js             # 认证与权限
 │   ├── portal.js           # 顶栏 / 守卫 / 提示
+│   ├── board.js            # 业务数据看板的图表与聚合逻辑（ECharts）
 │   └── config/roles.js     # 默认角色 + 默认用户（密码哈希）
 ├── pages/                  # 业务页面
 │   ├── board.html          # 业务数据看板（登录后通用首页，指标卡可钻取）
@@ -62,6 +63,7 @@ team-portal/
 ├── data/daily.json              # 日报数据快照（钉钉 AI 表格，Actions 自动更新）
 ├── assets/showcase.mp4          # 首页背景视频（1080p H.264，约 3.9MB）
 ├── assets/favicon.svg           # 站点图标
+├── vendor/echarts.min.js        # ECharts 5.5.1（已入库，**不外链 CDN**）
 ├── scripts/fetch-openapi.js     # 钉钉 OpenAPI 抓取脚本（纯 OpenAPI，无需本机）
 ├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:05）
 ├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
@@ -110,7 +112,9 @@ team-portal/
 ```
 
 - 数据源 baseId：`OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4`（共 17 张表，抓取其中 9 张）
-- 定时器：`.github/workflows/fetch.yml`，cron `5 3 * * *`（UTC 03:05 = 北京 11:05），支持手动 `workflow_dispatch`
+- 定时器：`.github/workflows/fetch.yml`，**每日两次** —— UTC 03:05（北京 11:05）与 UTC 10:30（北京 18:30），另支持手动 `workflow_dispatch`
+- 每表行数上限：`DINGTALK_ROW_CAP`（默认 **4000**，可用环境变量或手动触发的输入覆盖）
+- 抓取脚本 v1.2.0：带**指数退避重试**（网络抖动不再整表失败），并输出 `truncated` / `filledRows` / `failedTables` 元数据 —— **截断不再无声**
 - 所需 4 个 GitHub Secret：`DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET` / `DINGTALK_OPERATOR_ID` / `DINGTALK_BASE_ID`
 
 > ⚠️ **钉钉 OpenAPI 拿不到「公式 / 查找引用 / 关联引用 / 自动编号」字段**（官方限制）。
@@ -120,7 +124,6 @@ team-portal/
 手动补跑：Actions 页面 → `fetch` workflow → `Run workflow`。
 
 ### 4. 本地 Git 同步（重要）
-
 本项目的推送常需走 **Git Data API 绕行**（blob → tree → commit → ref），
 因为本机 `git push` 走 github.com:443 会被 reset / SSL 中断。**API 推送不会回写本地 git**，
 长期下来本地历史会与远端分叉（本地 `git log` 看不到真实版本、`git pull` 冲突、本地无法当回滚点）。
@@ -154,6 +157,26 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 > 正常网络下 `git push` / `git pull` 可直接用；只有 443 被中断时才需要 API 绕行。
 > 无论走哪条路，推送后养成跑一次 `sync-local.sh` 的习惯。
 
+### 5. 业务数据看板（图表口径）
+
+`pages/board.html` + `js/board.js`，图表用**仓库内**的 `vendor/echarts.min.js`（5.5.1），不外链 CDN —— 内部团队在国内网络下也能稳定加载。
+
+| 图 | 内容 | 数据来源 |
+|---|---|---|
+| 日 GMV 趋势 | 国内 / 跨境双折线 | domestic + crossborder，按「日期」聚合 |
+| 分店铺 GMV Top 10 | 横向条（**X 轴对数刻度**） | 同上，同店多日累计 |
+| 平台 GMV 占比 | 环形 | 按店铺所属「平台」归类 |
+| 负责人 GMV / 净利润 | 横向双系列条 | perf 表 |
+
+**两条口径不可混用**（页面上也有标注）：
+
+- **核心指标 = 国内 + 跨境 分店铺日报聚合**。日报总览的 GMV/订单/UV 是钉钉**公式字段**，OpenAPI 取不到，所以只能从分店铺聚合。
+- **负责人业绩 = perf 表**，属「负责人认领口径」，与分店铺口径**不可直接相加**。
+
+> 看板顶部有一条数据完整性提示：显示抓取了多少表/行、其中**有效记录**多少条、覆盖多少日期。
+> 报表里绝大多数行是**预建的空日期占位行**（投放/内容/流量/供应链 4 表数值字段目前填充率为 0），
+> 所以这 4 张表暂不出图 —— 等数据录入后加图即可。
+
 ## 📤 部署（GitHub Pages）
 
 1. 在 GitHub 新建仓库 `team-portal`（Public）
@@ -165,6 +188,12 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 ## 📝 变更日志
 
+> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 2.2.0）。
+
+- **v1.2.0**（2026-09-10）· 资源版本 `?v=2.2.0`：
+  - **看板增强**：新增 4 张图表（日 GMV 趋势 / 分店铺 Top10 / 平台占比 / 负责人业绩），逻辑抽到 `js/board.js`；ECharts 5.5.1 **入库**到 `vendor/`（不外链 CDN）；指标卡加副标（占比 / 费比）；新增数据完整性提示条与负责人业绩小结。
+  - **抓取配置调整**：每表行数上限 200 → **4000**（原上限导致 domestic/crossborder/ads/content 四表被**静默截断**）；新增 `truncated` / `filledRows` / `failedTables` 元数据；HTTP 层加**指数退避重试**；截断精确切齐；抓取改为**每日两次**（11:05 / 18:30）；workflow 推送前加 `git pull --rebase` + `concurrency` 锁，避免与人工推送撞车。
+  - 统一全站 `css/portal.css?v=2.2.0`（原先 2.0.0/2.1.0 混用）。
 - **v1.1.1**（2026-09-10）：同步脚本加固
   - 双通路：`git fetch` 不通时自动走 `api.github.com` 兜底（新增 `tools/fetch-remote-commit.py`，在本地重建同 SHA 的 commit 对象）
   - 新增**防误删闸门** `--force`：工作区脏时先备份再停下，不再无声丢弃未提交改动
@@ -176,5 +205,6 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
   - **修正过时说明**：原「日报数据更新方式」仍写手工从 login-portal 拷 JSON，实际早已改为 GitHub Actions 自动抓取。
 - **静态版 v1.0.0**（2026-09-10）：由 login-portal v2.0.0 改造为纯前端静态版，
   适配 GitHub Pages 子路径部署，登录/权限/数据全部本地化。
+
 
 
