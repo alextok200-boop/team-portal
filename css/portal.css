@@ -660,7 +660,9 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
     rgba(9, 7, 17, 0.72);
 }
 
-/* 顶部栏：透明浮层，logo 左、登录按钮右 */
+/* 顶部栏：透明浮层，logo 左、登录按钮右
+   注：登录页/首页都是长滚动页，顶栏浮在内容之上，必须有足够底色 + 模糊，
+   否则滚动时 logo 会与卡片文字叠在一起（实测）。 */
 .landing-header {
   position: fixed;
   top: 0;
@@ -671,7 +673,9 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
   align-items: center;
   justify-content: space-between;
   padding: 16px 28px;
-  background: linear-gradient(rgba(9, 7, 17, 0.65), transparent);
+  background: linear-gradient(rgba(9, 7, 17, 0.94) 0%, rgba(9, 7, 17, 0.72) 62%, transparent 100%);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 .landing-logo {
   display: flex;
@@ -823,3 +827,72 @@ tbody tr.row-click:hover { background: rgba(0, 255, 163, 0.06); }
   .chart-grid { grid-template-columns: 1fr; }
   .chart-box, .chart-box-lg { height: 260px; }
 }
+
+/* ══════════════════════════════════════════════
+   登录页 = 「加入我们」展示内容（主体）+ 登录栏（次要）
+   v2.3.0
+   ══════════════════════════════════════════════ */
+
+/* 两栏栅格：
+   桌面  "hero rail" / "body rail"  → 登录栏跨两行并吸顶，展示内容占左侧主列
+   窄屏  "hero" / "rail" / "body"  → 单列，登录表单紧跟 hero（保证首屏可见） */
+.auth-layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  grid-template-areas:
+    "hero rail"
+    "body rail";
+  align-items: start;
+  column-gap: 34px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+/* Hero 落在左列：横向内边距交给栅格，避免叠加 */
+.auth-hero {
+  grid-area: hero;
+  padding: 130px 0 54px;
+  text-align: left;
+}
+.auth-hero .hero-sub { margin: 0; }
+.auth-hero .hero-cta { justify-content: flex-start; }
+
+/* 登录栏：桌面吸顶，滚动看岗位时始终可登录 */
+.auth-rail {
+  grid-area: rail;
+  position: sticky;
+  top: 84px;
+  padding-top: 104px;      /* 让登录卡与 hero 主标题大致齐平，避开固定顶栏 */
+  scroll-margin-top: 76px; /* 顶栏「登录」按钮锚点跳转时不被固定顶栏盖住 */
+}
+
+/* 展示内容区作为栅格子项，去掉自带的外边距/内边距，避免与栅格叠加 */
+.auth-body {
+  grid-area: body;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 var(--sp-5);
+}
+
+@media (max-width: 1080px) {
+  .auth-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "hero" "rail" "body";
+    column-gap: 0;
+    padding: 0 18px;
+  }
+  .auth-hero { padding: 116px 0 34px; text-align: center; }
+  .auth-hero .hero-sub { margin: 0 auto; }
+  .auth-hero .hero-cta { justify-content: center; }
+  .auth-rail {
+    position: static;
+    padding-top: 0;
+    margin: 0 auto 30px;
+    max-width: 430px;
+    width: 100%;
+  }
+}
+

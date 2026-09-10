@@ -5,58 +5,132 @@
 <script>(function(){var p=location.pathname,i=p.indexOf("/pages/");var b=i!==-1?p.slice(0,i+1):p.slice(0,p.lastIndexOf("/")+1);window.SITE_BASE=b;window.Site={url:function(x){return b+String(x||"").replace(/^\//,"")},strip:function(x){var s=String(x||"");if(b!=="/"&&s.indexOf(b)===0)s=s.slice(b.length-1);return s}}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>登录 · 团队门户</title>
-<link rel="stylesheet" href="css/portal.css?v=2.2.0">
+<title>加入我们 · 团队门户</title>
+<meta name="description" content="万世康伦（KONLLEN）集团电商团队招聘：TK 跨境直播运营等岗位，深圳 / 南京。团队成员可从右侧登录进入工作台。">
+<link rel="stylesheet" href="css/portal.css?v=2.3.0">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2.0.0">
 </head>
 <body>
 
-<div class="login-wrap">
-  <div class="login-card">
+<!-- 视频背景：底层自动播放 -->
+<video class="video-bg" autoplay muted loop playsinline preload="auto">
+  <source src="assets/showcase.mp4" type="video/mp4">
+</video>
+<div class="video-overlay"></div>
 
-    <div class="login-head">
-      <div class="mark">🔐</div>
-      <h1>团队门户</h1>
-      <p>请输入账号与密码登录</p>
+<!-- 顶部栏：logo 左、登录态/进入看板 右 -->
+<header class="landing-header">
+  <a href="index.html" class="landing-logo"><span class="dot"></span>团队门户</a>
+  <div class="landing-actions" id="loginArea"></div>
+</header>
+
+<!-- 双栏布局：左侧＝加入我们展示内容（主体），右侧＝登录栏（次要，桌面吸顶） -->
+<div class="auth-layout">
+
+  <!-- Hero -->
+  <section class="landing-hero auth-hero">
+    <p class="eyebrow">Careers</p>
+    <h1>加入我们</h1>
+    <p class="hero-sub">15 人电商团队 · 49 个店铺 · 9 个品牌 · 国内海外双线</p>
+    <div class="hero-cta">
+      <a href="login.html#jobs" class="btn btn-primary">查看在招岗位</a>
+      <a href="mailto:alextok200@gmail.com" class="btn btn-ghost">直接投简历</a>
     </div>
+  </section>
 
-    <div id="alert" class="alert alert-error"></div>
-
-    <form id="loginForm" autocomplete="off">
-      <div class="field">
-        <label for="username">账号</label>
-        <input type="text" id="username" placeholder="请输入账号" autocomplete="username" required>
+  <!-- 登录栏（团队成员入口） -->
+  <aside class="auth-rail" id="loginRail">
+    <div class="login-card">
+      <div class="login-head">
+        <div class="mark">🔐</div>
+        <h1>团队登录</h1>
+        <p>团队成员请在此登录进入工作台</p>
       </div>
 
-      <div class="field">
-        <label for="password">密码</label>
-        <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" required>
-        <div class="hint">忘记密码请联系管理员重置</div>
+      <div id="alert" class="alert alert-error"></div>
+
+      <form id="loginForm" autocomplete="off">
+        <div class="field">
+          <label for="username">账号</label>
+          <input type="text" id="username" placeholder="请输入账号" autocomplete="username" required>
+        </div>
+
+        <div class="field">
+          <label for="password">密码</label>
+          <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" required>
+          <div class="hint">忘记密码请联系管理员重置</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="submitBtn">登录</button>
+      </form>
+
+      <div class="login-foot">
+        会话有效期 8 小时 · 权限由管理员在后台配置
       </div>
+    </div>
+  </aside>
 
-      <button type="submit" class="btn btn-primary btn-block" id="submitBtn">登录</button>
-    </form>
+  <!-- 加入我们 · 内容区 -->
+  <main class="portal-main landing-body auth-body">
 
-    <div class="login-foot">
-      会话有效期 8 小时 · 权限由管理员在后台配置
+    <div class="notice">
+      这里不缺舞台，缺的是能把事做成的人。<strong>内推优先</strong>——可直接把候选人简历发到团队邮箱。
     </div>
 
-  </div>
+    <h2 class="section-h">为什么是我们</h2>
+    <div class="grid" style="margin-bottom:32px">
+      <div class="card">
+        <h3>真·多平台战场</h3>
+        <p class="muted">国内 9+ 平台、海外 Amazon / Temu / TikTok Shop / 独立站，一个团队跑通两条增长曲线。</p>
+      </div>
+      <div class="card">
+        <h3>AI 先行的团队</h3>
+        <p class="muted">20+ 技能包把重复劳动自动化，你带来的方法论也会被沉淀成技能包，团队一起复用。</p>
+      </div>
+      <div class="card">
+        <h3>数据说了算</h3>
+        <p class="muted">看板、库存监控、价格预警都是现成的，决策不看资历看数字，试错成本团队扛。</p>
+      </div>
+    </div>
+
+    <h2 class="section-h" id="jobs">在招岗位</h2>
+    <div id="jobList"></div>
+
+    <p class="muted" style="margin:22px 0">
+      团队汇报口径：不允许只报结果数字，须同步「原因 — 结论 — 下一步动作」；重大错价、处罚、库存异常须当天上报。
+    </p>
+    <p class="muted">
+      薪资范围面议（按平台经验与操盘结果定级）。面试含平台实操笔试，会追问真实操盘数据：峰值月销、ACOS、最高场观、千川 ROI——我们只认跑出来的数。
+    </p>
+
+    <h2 class="section-h" style="margin-top:32px">怎么投</h2>
+    <div class="card">
+      <p class="muted">把简历发到团队邮箱，邮件标题写「应聘 - 岗位名」，正文简单说三件事：做过什么、做成过什么、为什么想来。</p>
+      <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+        <a href="mailto:alextok200@gmail.com" class="btn btn-primary">发简历到团队邮箱</a>
+      </div>
+    </div>
+  </main>
+
 </div>
 
 <script src="js/config/roles.js?v=2.0.0"></script>
 <script src="js/api.js?v=2.0.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
+<script src="js/landing.js?v=2.3.0"></script>
 <script>
 (function () {
   'use strict';
 
-  // 已登录则直接进入
+  /* 已登录则直接进入（团队成员再次访问登录页时不该停留在招聘页） */
   if (API.getToken()) {
     Auth.init().then(function (u) {
       if (u) window.location.replace(Site.url(u.landing || '/pages/board.html'));
     });
   }
+
+  /* 展示区：岗位列表 + 右上角操作区（本页即登录页，故不再放「登录」按钮） */
+  Landing.init({ loginHref: null });
 
   var form = document.getElementById('loginForm');
   var alertBox = document.getElementById('alert');
