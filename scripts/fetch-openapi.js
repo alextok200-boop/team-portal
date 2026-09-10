@@ -42,23 +42,32 @@ const SOURCE_NAME = '电商营销备战-日报追踪表';
 const OUT_FILE = path.join(__dirname, '..', 'data', 'daily.json');
 
 /* ── 抓取参数 ───────────────────────────────────────────── */
-const PAGE_SIZE = 100;                                        // 单次请求条数（接口上限 100）
-const ROW_CAP = Number(process.env.DINGTALK_ROW_CAP || 4000); // 每表行数上限
-const MAX_PAGES = Math.ceil(ROW_CAP / PAGE_SIZE) + 2;
-const RETRY = 3;                                              // 单请求最大尝试次数
+const PAGE_SIZE = 100;   // 单次请求条数（接口上限 100）
+
+/* 上限分两层，这是关键设计：
+     rawCap  —— 每表最多「扫描」多少原始行（含空白模板行）
+     keepCap —— 每表最多「保留」多少有数据的行
+   背景：日报追踪表里预建了整年的空白模板行（只有日期/星期/促销节点）。
+   单一上限会让空白行挤占配额、把真数据截断 —— 200 行上限时国内表只捞到
+   24 条有效记录，而实际有 799 条。 */
+const RAW_CAP = Number(process.env.DINGTALK_RAW_CAP || 4000);
+const KEEP_CAP = Number(process.env.DINGTALK_KEEP_CAP || 8000);
+/* 丢弃「只有结构字段、无任何数值/文本」的空白模板行（默认丢；DINGTALK_DROP_EMPTY=0 可保留） */
+const DROP_EMPTY = process.env.DINGTALK_DROP_EMPTY !== '0';
+const RETRY = 3;                 // 单请求最大尝试次数
 const RETRY_BASE_MS = 800;
 
-/* ── 抓取的表（key → 表 ID / 中文名 / 分组）──────────────── */
+/* ── 抓取的表（key → 表 ID / 中文名 / 分组 / 可选 rawCap）── */
 const TABLES = [
   { key: 'overview',    id: '3a6wqi6k4dsbe617zhkre', name: '1.日报总览',           group: '总览' },
-  { key: 'domestic',    id: 'lb3j254h8wqiur8qchavd', name: '2.分店铺日报（国内）', group: '分店铺' },
-  { key: 'crossborder', id: 'Nra7g5p',                name: '2.分店铺日报（跨境）', group: '分店铺' },
-  { key: 'ads',         id: 'p8b405p6gt2jgntr1ul26',  name: '3.投放日报',           group: '投放' },
-  { key: 'content',     id: '6z8rcxay1hhhv4xmbbc89',  name: '4.内容达人日报',       group: '内容' },
-  { key: 'traffic',     id: '56p4no5umzcmokaaefh63',  name: '5.流量竞品日报',       group: '流量' },
-  { key: 'supply',      id: 'v5wnul31vkbcdwulr9v0b',  name: '6.供应链客服日报',     group: '供应链' },
-  { key: 'team',        id: 'hcxjxotvzquyybjr9kvvi',  name: '7.团队战力评估',       group: '团队' },
-  { key: 'perf',        id: 'mVmsNph',                name: '15.负责人业绩日报',    group: '业绩' }
+  { key: 'domestic',    id: 'lb3j254h8wqiur8qchavd', name: '2.分店铺日报（国内）', group: '分店铺', rawCap: 16000 },
+  { key: 'crossborder', id: 'Nra7g5p',               name: '2.分店铺日报（跨境）', group: '分店铺', rawCap: 24000 },
+  { key: 'ads',         id: 'p8b405p6gt2jgntr1ul26', name: '3.投放日报',           group: '投放' },
+  { key: 'content',     id: '6z8rcxay1hhhv4xmbbc89', name: '4.内容达人日报',       group: '内容' },
+  { key: 'traffic',     id: '56p4no5umzcmokaaefh63', name: '5.流量竞品日报',       group: '流量' },
+  { key: 'supply',      id: 'v5wnul31vkbcdwulr9v0b', name: '6.供应链客服日报',     group: '供应链' },
+  { key: 'team',        id: 'hcxjxotvzquyybjr9kvvi', name: '7.团队战力评估',       group: '团队' },
+  { key: 'perf',        id: 'mVmsNph',               name: '15.负责人业绩日报',    group: '业绩' }
 ];
 
 /* 结构字段：只填这些的行算「空占位行」（表里预建了整年的日期行） */
@@ -160,8 +169,11 @@ async function fetchTable(token, t) {
     console.warn('  [警告] 字段读取失败 ' + t.name + '：' + e.message.split('\n')[0]);
   }
 
-  // 2. 记录列表（分页 + 行数上限 + 精确切齐）
-  const rows = [];
+  // 2. 记录列表（分页扫描 + 双层上限：rawCap 控扫描量、keepCap 控保留量）
+  const rawCap = t.rawCap || RAW_CAP;
+  const rows = [];          // 保留的行（有数据的）
+  let rawRows = 0;          // 扫描到的原始行数
+  let droppedEmpty = 0;     // 被丢掉的空白模板行
   let nextToken = '';
   let pages = 0;
   let truncated = false;
@@ -182,19 +194,23 @@ async function fetchTable(token, t) {
         const val = cellValue(cells[fid]);
         if (val !== null && val !== '' && val !== undefined) o[key] = val;
       });
+      rawRows++;
+      if (DROP_EMPTY && !rowHasData(o)) { droppedEmpty++; return; }
       rows.push(o);
     });
     nextToken = (rr && rr.nextToken) || '';
     pages++;
-    // 精确切齐到 ROW_CAP；是否截断只看「还有没有下一页」
-    if (rows.length >= ROW_CAP) {
-      if (rows.length > ROW_CAP) rows.length = ROW_CAP;
+
+    if (rawRows >= rawCap) {                    // 扫描量到顶
       truncated = !!nextToken;
       break;
     }
-  } while (nextToken && pages < MAX_PAGES);
-
-  if (pages >= MAX_PAGES && nextToken) truncated = true;
+    if (rows.length >= KEEP_CAP) {              // 保留量到顶
+      if (rows.length > KEEP_CAP) rows.length = KEEP_CAP;
+      truncated = true;
+      break;
+    }
+  } while (nextToken);
 
   // 3. columns：基础字段 + 记录里出现的额外字段（公式/查找字段）
   const seen = {};
@@ -203,12 +219,12 @@ async function fetchTable(token, t) {
     Object.keys(r).forEach(function (k) { if (!seen[k]) { seen[k] = true; if (fieldNames.indexOf(k) === -1) columns.push(k); } });
   });
 
-  let filledRows = 0;
-  rows.forEach(function (r) { if (rowHasData(r)) filledRows++; });
-
   return {
     key: t.key, name: t.name, group: t.group, tableId: t.id,
-    fieldCount: columns.length, rowCount: rows.length, filledRows: filledRows,
+    fieldCount: columns.length,
+    rowCount: rows.length,            // 保留的行（有数据的）
+    rawRows: rawRows,                 // 扫描到的原始行
+    droppedEmptyRows: droppedEmpty,   // 丢掉的空白模板行
     truncated: truncated, pagesFetched: pages,
     columns: columns, rows: rows
   };
@@ -226,12 +242,13 @@ async function fetchTable(token, t) {
   }
 
   console.log('钉钉日报抓取 · ' + SOURCE_NAME + '（baseId=' + BASE_ID + '）');
-  console.log('每表行数上限：' + ROW_CAP + ' · 单页 ' + PAGE_SIZE + ' 条\n');
+  console.log('扫描上限 rawCap=' + RAW_CAP + '（分店铺表另有 16000/24000）· 保留上限 keepCap=' + KEEP_CAP +
+    ' · 空白模板行：' + (DROP_EMPTY ? '丢弃' : '保留') + ' · 单页 ' + PAGE_SIZE + ' 条\n');
   const token = await getToken();
   console.log('access_token 获取成功\n');
 
   const results = [];
-  let totalRows = 0, okTables = 0, filledRowsTotal = 0;
+  let totalRows = 0, okTables = 0, rawRowsTotal = 0, droppedEmptyTotal = 0;
   const failed = [], truncatedTables = [];
 
   for (let i = 0; i < TABLES.length; i++) {
@@ -241,19 +258,21 @@ async function fetchTable(token, t) {
       const r = await fetchTable(token, t);
       results.push(r);
       totalRows += r.rowCount;
-      filledRowsTotal += r.filledRows;
+      rawRowsTotal += r.rawRows;
+      droppedEmptyTotal += r.droppedEmptyRows;
       if (r.rowCount > 0) okTables++;
       if (r.truncated) truncatedTables.push(t.key);
-      console.log(r.rowCount + ' 行（有效 ' + r.filledRows + '）/ ' + r.fieldCount + ' 字段' +
-        (r.truncated ? '  ⚠ 已达上限 ' + ROW_CAP + ' 行，可能截断' : ''));
+      console.log(r.rowCount + ' 条有效（扫描 ' + r.rawRows + ' 行，丢空白 ' + r.droppedEmptyRows +
+        '）/ ' + r.fieldCount + ' 字段' +
+        (r.truncated ? '  ⚠ 已到上限，可能截断' : ''));
     } catch (e) {
       const msg = e.message.split('\n')[0];
       console.log('失败：' + msg);
       failed.push({ key: t.key, name: t.name, error: msg });
       results.push({
         key: t.key, name: t.name, group: t.group, tableId: t.id,
-        fieldCount: 0, rowCount: 0, filledRows: 0, truncated: false,
-        columns: [], rows: [], error: msg
+        fieldCount: 0, rowCount: 0, rawRows: 0, droppedEmptyRows: 0,
+        truncated: false, columns: [], rows: [], error: msg
       });
     }
   }
@@ -270,12 +289,15 @@ async function fetchTable(token, t) {
     sourceUrl: 'https://alidocs.dingtalk.com/i/nodes/' + BASE_ID,
     baseId: BASE_ID,
     pageSize: PAGE_SIZE,
-    limitPerTable: ROW_CAP,               // 保留旧字段名（admin 页「每表上限」在用）
-    rowCap: ROW_CAP,
+    limitPerTable: KEEP_CAP,              // 保留旧字段名（admin 页「每表上限」在用）
+    keepCap: KEEP_CAP,
+    rawCap: RAW_CAP,
+    dropEmptyRows: DROP_EMPTY,
     tableCount: results.length,
     okTables: okTables,
-    totalRows: totalRows,
-    filledRowsTotal: filledRowsTotal,
+    totalRows: totalRows,                 // 保留（有数据的）行数
+    rawRowsTotal: rawRowsTotal,           // 扫描到的原始行数
+    droppedEmptyRowsTotal: droppedEmptyTotal,
     truncatedTables: truncatedTables,
     complete: truncatedTables.length === 0 && failed.length === 0,
     failedTables: failed,
@@ -285,9 +307,10 @@ async function fetchTable(token, t) {
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
   fs.writeFileSync(OUT_FILE, JSON.stringify(payload, null, 2), 'utf8');
 
-  console.log('\n完成：' + okTables + '/' + results.length + ' 张表有数据，共 ' + totalRows +
-    ' 行（其中有效 ' + filledRowsTotal + ' 行）');
-  if (truncatedTables.length) console.log('⚠ 被截断的表：' + truncatedTables.join(', ') + '（可调大 DINGTALK_ROW_CAP）');
+  console.log('\n完成：' + okTables + '/' + results.length + ' 张表有数据 · 保留 ' + totalRows +
+    ' 条有效记录（扫描 ' + rawRowsTotal + ' 行，丢弃空白模板行 ' + droppedEmptyTotal + '）');
+  if (truncatedTables.length) console.log('⚠ 被截断的表：' + truncatedTables.join(', ') +
+    '（可调大 DINGTALK_RAW_CAP / 表级 rawCap）');
   if (failed.length) console.log('✗ 失败的表：' + failed.map(function (f) { return f.name; }).join(', '));
   console.log('已写入：' + OUT_FILE + '\n');
 })().catch(function (e) {

@@ -113,8 +113,10 @@ team-portal/
 
 - 数据源 baseId：`OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4`（共 17 张表，抓取其中 9 张）
 - 定时器：`.github/workflows/fetch.yml`，**每日两次** —— UTC 03:05（北京 11:05）与 UTC 10:30（北京 18:30），另支持手动 `workflow_dispatch`
-- 每表行数上限：`DINGTALK_ROW_CAP`（默认 **4000**，可用环境变量或手动触发的输入覆盖）
-- 抓取脚本 v1.2.0：带**指数退避重试**（网络抖动不再整表失败），并输出 `truncated` / `filledRows` / `failedTables` 元数据 —— **截断不再无声**
+- 每表行数上限：**双层设计** —— `rawCap`（扫描多少原始行，默认 4000，分店铺表 16000/24000）+ `keepCap`（保留多少有效行，默认 8000）
+- ⚠️ **为什么要双层**：日报追踪表里预建了整年的**空白模板行**（只有日期/星期/促销节点）。单一上限会被空白行挤占，导致真数据被截断 —— 200 行上限时国内表只捞到 24 条有效记录，实际有 799 条
+- 空白模板行默认**丢弃**（`DINGTALK_DROP_EMPTY=0` 可保留），并在 payload 里报告 `rawRows` / `droppedEmptyRows`，丢弃不无声
+- 抓取脚本带**指数退避重试**（网络抖动不再整表失败），输出 `truncated` / `failedTables` 元数据 —— **截断不再无声**
 - 所需 4 个 GitHub Secret：`DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET` / `DINGTALK_OPERATOR_ID` / `DINGTALK_BASE_ID`
 
 > ⚠️ **钉钉 OpenAPI 拿不到「公式 / 查找引用 / 关联引用 / 自动编号」字段**（官方限制）。
@@ -190,9 +192,14 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 > 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 2.2.0）。
 
+- **v1.2.1**（2026-09-10）· 资源版本 `?v=2.2.0`：
+  - **抓取上限改双层**（`rawCap` 扫描 / `keepCap` 保留）+ 默认丢弃空白模板行。修掉 v1.2.0 暴露的机制缺陷：**上限原本按总行数计，空白模板行挤占配额、把真数据截断**。
+  - 实测效果：有效记录 45 → **992** 条，日期 30 → **50** 个，店铺 19 → **36** 家；全公司 GMV ¥355,618 → **¥12,928,167**（原先被截断，低估约 36 倍）。
+  - 分店铺表扫描上限提至 16000 / 24000（其余表 4000），`data/daily.json` 由 3.2MB 回落到 ~1MB 量级。
+  - 看板顶部提示条改为「保留 N 条有效记录（扫描 M 行，已过滤 K 行空白模板行）」，并在有表触顶时显式告警。
 - **v1.2.0**（2026-09-10）· 资源版本 `?v=2.2.0`：
   - **看板增强**：新增 4 张图表（日 GMV 趋势 / 分店铺 Top10 / 平台占比 / 负责人业绩），逻辑抽到 `js/board.js`；ECharts 5.5.1 **入库**到 `vendor/`（不外链 CDN）；指标卡加副标（占比 / 费比）；新增数据完整性提示条与负责人业绩小结。
-  - **抓取配置调整**：每表行数上限 200 → **4000**（原上限导致 domestic/crossborder/ads/content 四表被**静默截断**）；新增 `truncated` / `filledRows` / `failedTables` 元数据；HTTP 层加**指数退避重试**；截断精确切齐；抓取改为**每日两次**（11:05 / 18:30）；workflow 推送前加 `git pull --rebase` + `concurrency` 锁，避免与人工推送撞车。
+  - **抓取配置调整**：每表行数上限 200 → 4000；新增 `truncated` / `filledRows` / `failedTables` 元数据；HTTP 层加**指数退避重试**；抓取改为**每日两次**（11:05 / 18:30）；workflow 推送前加 `git pull --rebase` + `concurrency` 锁，避免与人工推送撞车。
   - 统一全站 `css/portal.css?v=2.2.0`（原先 2.0.0/2.1.0 混用）。
 - **v1.1.1**（2026-09-10）：同步脚本加固
   - 双通路：`git fetch` 不通时自动走 `api.github.com` 兜底（新增 `tools/fetch-remote-commit.py`，在本地重建同 SHA 的 commit 对象）

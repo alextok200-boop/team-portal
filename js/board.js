@@ -109,7 +109,6 @@
       var stores = {};
       var byDate = {};          // 日期 → {dom, cross}
       var platformGmv = {};
-      var validRows = 0;
 
       ['domestic', 'crossborder'].forEach(function (key) {
         var isDom = key === 'domestic';
@@ -122,7 +121,7 @@
           else { agg.crossGmv += gmv; agg.crossOrders += orders; agg.crossUv += uv; }
 
           if (gmv <= 0) return;
-          validRows++;
+
 
           var dt = r['日期'] || '';
           if (dt) {
@@ -167,12 +166,16 @@
 
       /* ============ 3. 数据完整性提示 ============ */
       var dates = Object.keys(byDate).sort();
+      var dropped = num(D.droppedEmptyRowsTotal);
       document.getElementById('dataNote').innerHTML =
-        '已抓取 <b>' + tables.length + '</b> 张表 / <b>' + fmtInt(D.totalRows) + '</b> 行；' +
-        '其中分店铺明细有效记录 <b>' + validRows + '</b> 条，覆盖 <b>' + dates.length + '</b> 个日期' +
+        '保留 <b>' + fmtInt(D.totalRows) + '</b> 条有效记录（扫描 ' + fmtInt(D.rawRowsTotal || D.totalRows) +
+        ' 行' + (dropped ? '，已过滤 <b>' + fmtInt(dropped) + '</b> 行空白模板行' : '') + '）· ' +
+        '分店铺明细覆盖 <b>' + dates.length + '</b> 个日期' +
         (dates.length ? '（' + dates[0] + ' – ' + dates[dates.length - 1] + '）' : '') +
         '、<b>' + storeList.length + '</b> 家店铺。' +
-        '<span class="muted">投放 / 内容 / 流量 / 供应链 4 张表当前仅有日期占位行，数值字段尚未录入，故未出图。</span>';
+        '<span class="muted">投放 / 内容 / 流量 / 供应链 / 团队 5 张表当前仅有日期占位、数值字段尚未录入，故未出图。' +
+        (D.complete === false ? ' ⚠ 本次抓取有表触及扫描上限（' + (D.truncatedTables || []).join('、') + '），数据可能不完整。' : '') +
+        '</span>';
 
       /* ============ 4. 图① 日 GMV 趋势 ============ */
       var cTrend = mountChart('chartTrend');

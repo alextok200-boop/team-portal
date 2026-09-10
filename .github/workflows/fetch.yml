@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       row_cap:
-        description: '每表行数上限（留空用默认 4000）'
+        description: '扫描行数上限 rawCap（留空用默认 4000，分店铺表另有 16000/24000）'
         required: false
         default: ''
 
@@ -42,7 +42,7 @@ jobs:
           DINGTALK_APP_SECRET: ${{ secrets.DINGTALK_APP_SECRET }}
           DINGTALK_OPERATOR_ID: ${{ secrets.DINGTALK_OPERATOR_ID }}
           DINGTALK_BASE_ID: ${{ secrets.DINGTALK_BASE_ID }}
-          DINGTALK_ROW_CAP: ${{ github.event.inputs.row_cap }}
+          DINGTALK_RAW_CAP: ${{ github.event.inputs.row_cap }}
         run: node scripts/fetch-openapi.js
 
       - name: 提交数据（若有变化）
