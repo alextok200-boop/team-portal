@@ -113,7 +113,9 @@
       → 点底部 <strong>Generate token</strong>，复制以 <code>github_pat_</code> 开头的那串 ——
         <strong>它只显示这一次，务必当场复制</strong><br>
       → 回到本页粘进下面「GitHub Token」框，点「保存配置」。
-      <span class="muted">（经典 Token <code>ghp_</code> 也能用，但必须勾整个 <code>repo</code> 权限、范围过大，不推荐。）</span>
+      <span class="muted">（经典 Token <code>ghp_</code> 也能用，但必须勾整个 <code>repo</code> 权限、范围过大，不推荐。）</span><br>
+      <span class="muted">点「保存配置」时本站会<strong>真的试写一次</strong>（只产生一个游离对象，不改任何文件、不动分支），
+      确认真能写才保存 —— 所以保存失败基本都是上一步 Contents 没给写权限。</span>
     </div>
 
     <div class="notice">
@@ -147,7 +149,7 @@
 
 <script src="js/config/roles.js?v=2.0.0"></script>
 <script src="js/datastore.js?v=2.5.0"></script>
-<script src="js/api.js?v=2.6.1"></script>
+<script src="js/api.js?v=2.7.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/portal.js?v=2.5.0"></script>
 <script>
@@ -348,7 +350,7 @@
       if (!r.value) r.value = res.repo || '';
       document.getElementById('ghBranch').value = res.branch || 'main';
       document.getElementById('ghState').textContent = res.configured
-        ? '已配置（Token 尾号 ' + res.tokenTail + '）' : '未配置';
+        ? '已配置（Token 尾号 ' + res.tokenTail + (res.canWrite === true ? '，已确认可写' : '') + '）' : '未配置';
 
       var bar = document.getElementById('ghPendingBar');
       bar.hidden = false;

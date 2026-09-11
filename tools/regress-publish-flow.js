@@ -12,6 +12,9 @@
    覆盖：
      ① 未配置 Token：状态正确、发布被拒
      ② 配置 Token：保存成功、只回尾号、**Token 不落进任何导出**
+     ②·2 **只读 Token 必须被拦在保存这一步**：GET /repos 只需要 Metadata: read，
+            而 permissions.push 反映的是「你的账号角色」（自己的仓库恒为 true），
+            所以必须靠**试写探针**（POST /git/blobs，要求 Contents: write）才能验出真能不能写
      ③ 配置失败：坏 Token 被拒且**不会把坏配置存进去**
      ④ 正常发布：提交 data/content.json、来源列由「待发布」变「仓库」、待发布归零
      ⑤ 冲突 409：错误可读且明确提示重试
@@ -62,6 +65,7 @@ const mock = {
   sha: 'sha_initial',
   badToken: false,     // token 以 'bad' 开头 → 401
   noPush: false,       // 仓库不可写
+  noWrite: false,      // 写权限探针（POST /git/blobs）一律 403 —— 模拟「Token 只勾了只读」
   forceConflict: false, // PUT 一律 409
   staleContent: null   // 非 null 时，页面拉 data/content.json 一律返回这份旧副本
                        // —— 等价于「GitHub Pages 还没重建完」。用来验证发布后立即归零
@@ -97,6 +101,14 @@ async function handleGh(req, origin) {
       status: 200, headers: h,
       body: JSON.stringify({ full_name: 'probe/team-portal', default_branch: 'main', permissions: { push: !mock.noPush } })
     });
+  }
+
+  // POST /repos/{o}/{r}/git/blobs —— 保存配置时的「写权限探针」
+  // 真 GitHub 上这个端点要求 Contents: write，且只产生游离 blob（无副作用）
+  if (/^\/repos\/[^\/]+\/[^\/]+\/git\/blobs$/.test(u.split('?')[0]) && method === 'POST') {
+    if (isBad) return req.respond({ status: 401, headers: h, body: JSON.stringify({ message: 'Bad credentials' }) });
+    if (mock.noWrite) return req.respond({ status: 403, headers: h, body: JSON.stringify({ message: 'Resource not accessible by personal access token' }) });
+    return req.respond({ status: 201, headers: h, body: JSON.stringify({ sha: 'blob_' + Date.now(), url: GH + '/blobs/x' }) });
   }
 
   // /repos/{o}/{r}/contents/{path}
@@ -204,11 +216,13 @@ async function apiLogin(page, u, p) {
     console.log('\n② 配置 Token');
     let cfgOk = await page.evaluate(() => API.post('/api/publish/config', {
       token: 'ghp_goodtoken1234', owner: 'probe', repo: 'team-portal', branch: 'main'
-    }).then(x => ({ s: x._status, ok: x.ok, repo: x.repo && x.repo.fullName, err: x.error })));
+    }).then(x => ({ s: x._status, ok: x.ok, repo: x.repo && x.repo.fullName, cw: x.repo && x.repo.canWrite, err: x.error })));
     check('保存配置成功（已过 GitHub 校验）', cfgOk.s === 200 && cfgOk.ok, JSON.stringify(cfgOk));
+    check('保存时确实试写过，且判定为可写', cfgOk.cw === true, JSON.stringify(cfgOk));
 
-    st = await page.evaluate(() => API.get('/api/publish/status').then(x => ({ configured: x.configured, tail: x.tokenTail })));
+    st = await page.evaluate(() => API.get('/api/publish/status').then(x => ({ configured: x.configured, tail: x.tokenTail, cw: x.canWrite })));
     check('状态=已配置，且只暴露 Token 尾号', st.configured === true && st.tail === '1234', JSON.stringify(st));
+    check('状态回显「已确认可写」（供界面显示）', st.cw === true, JSON.stringify(st));
 
     const leak = await page.evaluate(async () => {
       const usr = await API.get('/api/users/export');
@@ -227,6 +241,22 @@ async function apiLogin(page, u, p) {
     });
     check('Token 不出现在任何导出 payload 里', leak.inExport === false, JSON.stringify(leak));
     check('Token 只存在独立配置键，不混入 users/content 数据', leak.cfgKeySeparate && leak.inPortalData === false, JSON.stringify(leak));
+
+    /* ②·2 只读 Token —— 以前会被误判成「已配置」，必须在保存这一步就拦下 */
+    console.log('\n②·2 只读 Token 被拦在保存这一步');
+    check('保存配置时真的发起了写权限探针（POST git/blobs）',
+          ghCalls.some(c => /^POST \/repos\/.+\/git\/blobs$/.test(c)), JSON.stringify(ghCalls.slice(-6)));
+
+    mock.noWrite = true;
+    let cfgRO = await page.evaluate(() => API.post('/api/publish/config', {
+      token: 'ghp_readonly9999', owner: 'probe', repo: 'team-portal', branch: 'main'
+    }).then(x => ({ s: x._status, e: x.error || '' })));
+    check('只读 Token 保存被拒（400）', cfgRO.s === 400, JSON.stringify(cfgRO));
+    check('错误文案点明去改 Contents 权限', /Contents/.test(cfgRO.e) && /Read and write/.test(cfgRO.e), JSON.stringify(cfgRO.e));
+    mock.noWrite = false;
+
+    let stRO = await page.evaluate(() => API.get('/api/publish/status').then(x => ({ tail: x.tokenTail, cw: x.canWrite })));
+    check('只读 Token 没有落盘（仍是上一把可写的）', stRO.tail === '1234' && stRO.cw === true, JSON.stringify(stRO));
 
     /* ③ 配置 Token（失败不能落盘） */
     console.log('\n③ 坏 Token 被拒且不落盘');
@@ -346,7 +376,7 @@ async function apiLogin(page, u, p) {
       };
     });
     check('管理后台有「自动提交」页签', adm.hasTab, JSON.stringify(adm));
-    check('显示已配置（尾号）', /已配置/.test(adm.state) && /1234/.test(adm.state), adm.state);
+    check('显示已配置（尾号 + 已确认可写）', /已配置/.test(adm.state) && /1234/.test(adm.state) && /已确认可写/.test(adm.state), adm.state);
     check('待发布条提示可见', /待发布/.test(adm.barText), adm.barText);
     check('用户页出现「一键发布」按钮', adm.publishBtn, JSON.stringify(adm));
     check('owner/repo 已回填', adm.ownerFilled === 'probe' && adm.repoFilled === 'team-portal', JSON.stringify(adm));
@@ -364,6 +394,7 @@ async function apiLogin(page, u, p) {
     check('用户管理说明已提「一键发布到仓库」', /一键发布到仓库/.test(copy.notice), copy.notice.slice(0, 80));
     check('「自动提交」页签有获取 Token 的直达链接', copy.tokenLink, JSON.stringify(copy.tokenLink));
     check('页签写明 Contents 读写 + 只选本仓库', /Contents/.test(copy.publish) && /Only select repositories/.test(copy.publish), '');
+    check('页签说明「保存时会试写一次」以取信「已确认可写」', /试写/.test(copy.publish), '');
 
     /* ⑨ 发布成功后「待发布」必须**立刻**归零 —— 不能等 Pages 重建 */
     console.log('\n⑨ 发布后立即归零（模拟 Pages 仍是旧副本）');

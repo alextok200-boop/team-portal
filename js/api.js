@@ -206,7 +206,40 @@ var API = (function () {
     };
   }
 
-  /* 校验 token + 仓库可达（保存配置前先跑一次，早失败好过发布时才发现） */
+  /* ★ 写权限探针 —— 只靠 GET /repos 是**验不出能不能写**的，必须真的试写一次。
+     两个坑都踩过：
+       ① GET /repos/{o}/{r} 只需要 Metadata: read，所以「只读 Token」也能 200；
+       ② 返回体里的 permissions.push 反映的是**你这个账号在仓库里的角色**
+          —— 仓库是你自己的，它恒为 true，跟 Token 勾了什么无关。
+     所以改用 POST /repos/{o}/{r}/git/blobs：GitHub 要求它必须持 Contents: write，
+     而它只往对象库丢一个「游离 blob」—— 不产生 commit、不动分支、不影响任何文件、
+     不触发 Pages 重建。成功 201 = 确认可写；403 = 确认只读（保存直接拦下）。
+     网络抖动 / 404 / 422 这类「判定不了」的情况**不阻断保存**，留给真正发布时兜底报错。 */
+  function ghWriteProbe(cfg) {
+    var url = GH_API + '/repos/' + cfg.owner + '/' + cfg.repo + '/git/blobs';
+    var h = Object.assign({ 'Content-Type': 'application/json' }, ghHeaders(cfg));
+    return fetch(url, {
+      method: 'POST', headers: h, cache: 'no-store',
+      body: JSON.stringify({ content: 'team-portal write probe ' + Date.now(), encoding: 'utf-8' })
+    }).then(function (r) {
+      if (r.status === 201) return true;
+      if (r.status === 403) {
+        var e = new Error('这个 Token 只能读、不能写（403）：请到 GitHub 打开该 Token，把 Contents 权限改成 Read and write，再回来保存');
+        e.blocking = true;
+        throw e;
+      }
+      if (r.status === 401) {
+        var e2 = new Error('Token 无效或已过期（401）');
+        e2.blocking = true;
+        throw e2;
+      }
+      return null;                        // 判定不了（如企业版无此端点）→ 不阻断
+    }, function () {
+      return null;                        // 网络异常 → 不阻断保存，发布时再报
+    });
+  }
+
+  /* 校验 token + 仓库可达 + **确认可写**（保存配置前先跑一次，早失败好过发布时才发现） */
   function ghProbe(cfg) {
     return fetch(GH_API + '/repos/' + cfg.owner + '/' + cfg.repo, { headers: ghHeaders(cfg), cache: 'no-store' })
       .then(function (r) {
@@ -217,8 +250,16 @@ var API = (function () {
           return {
             fullName: d.full_name || (cfg.owner + '/' + cfg.repo),
             defaultBranch: d.default_branch || 'main',
+            /* 仅供参考：这是「你的账号角色」，不是 Token 的实际写权限 */
             canPush: !!(d.permissions && d.permissions.push)
           };
+        });
+      })
+      .then(function (info) {
+        return ghWriteProbe(cfg).then(function (w) {
+          info.canWrite = (w === true);      // 只有试写成功才是 true
+          info.writeChecked = (w !== null);  // false 表示「没验出来」，别当成「不能写」
+          return info;
         });
       });
   }
@@ -286,6 +327,10 @@ var API = (function () {
     return {
       configured: !!cfg.token,
       tokenTail: cfg.token ? String(cfg.token).slice(-4) : '',
+      /* 保存时是否**试写成功过**。undefined = 老配置没验过（不显示为「只读」，只是「未验证」）。
+         故意不在这里实时探一次：状态查询会被频繁调用，每次打一次 GitHub 太吵。 */
+      canWrite: cfg.canWrite,
+      writeCheckedAt: cfg.writeCheckedAt || '',
       owner: cfg.owner || guess.owner,
       repo: cfg.repo || guess.repo,
       branch: cfg.branch || 'main',
@@ -686,11 +731,15 @@ var API = (function () {
       var gBranch = String(body.branch || '').trim() || 'main';
       if (!gOwner || !gRepo) return err(400, '请填写仓库 owner 与 repo');
       var probeCfg = { token: gt, owner: gOwner, repo: gRepo, branch: gBranch };
-      // 保存前先验一次：Token 错/仓库无权限，此刻就该报出来
+      // 保存前先验一次：Token 错 / 仓库无权限 / **只能读不能写**，此刻就该报出来
       return ghProbe(probeCfg).then(function (info) {
+        /* 把「保存时确认可写」记进配置，供状态栏回显。
+           老配置没有这个字段 → 状态栏不显示「已确认可写」，不误报。 */
+        probeCfg.canWrite = (info.canWrite === true);
+        probeCfg.writeCheckedAt = new Date().toISOString();
         saveGhCfg(probeCfg);
         var cu1 = currentUser();
-        if (cu1) appendLog({ time: new Date().toISOString(), username: cu1.username, name: cu1.name, role: cu1.role, ok: true, reason: '配置自动提交：' + gOwner + '/' + gRepo + '@' + gBranch, ip: 'local' });
+        if (cu1) appendLog({ time: new Date().toISOString(), username: cu1.username, name: cu1.name, role: cu1.role, ok: true, reason: '配置自动提交：' + gOwner + '/' + gRepo + '@' + gBranch + (probeCfg.canWrite ? '（已确认可写）' : '（写权限未验证）'), ip: 'local' });
         return ok(200, { saved: true, repo: info });
       }).catch(function (e) {
         return err(400, String((e && e.message) || e));
