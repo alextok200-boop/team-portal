@@ -214,6 +214,17 @@ def local_parents(root, sha):
     return [ln.split()[1] for ln in p.stdout.splitlines() if ln.startswith("parent ")]
 
 
+def local_tree(root, sha):
+    """本地 commit 对象里读它指向的 tree SHA；对象不存在返回 None。"""
+    p = run(["git", "cat-file", "-p", sha], cwd=root)
+    if p.returncode != 0:
+        return None
+    for ln in p.stdout.splitlines():
+        if ln.startswith("tree "):
+            return ln.split()[1]
+    return None
+
+
 def ensure_commit_chain(root, sha, token, stats, seen=None, max_commits=1000):
     """递归补齐 commit 及其祖先，直到整条链在本地区都完整。
 
@@ -225,6 +236,11 @@ def ensure_commit_chain(root, sha, token, stats, seen=None, max_commits=1000):
     ⚠️ 不能「目标已存在就整个跳过」：那样恰好漏掉「目标在、祖先缺」的断链
     （正是上面那个场景）。所以本地已有的 commit 也继续上溯，只是不必打 API
     —— 父提交从本地对象里读，成本极低。
+
+    ⚠️ 本地已有的 commit 还必须校验**它的 tree 是否存在**，缺则补 tree 闭包。
+    只补 commit 不补 tree 会留下「git log 能看、git status 打不开」的半残状态：
+    实测补齐 0761185 后 `git log` 一切正常，但 `git status` 报 bad tree object HEAD
+    —— 因为那个 commit 本地本来就有，于是它的 tree 从没被取回，成了断链。
     """
     seen = seen if seen is not None else set()
     stack = [sha]
@@ -237,6 +253,11 @@ def ensure_commit_chain(root, sha, token, stats, seen=None, max_commits=1000):
         seen.add(s)
         parents = local_parents(root, s)
         if parents is not None:
+            tree = local_tree(root, s)
+            if tree and not object_exists(root, tree):
+                print("# commit %s 本地已有但 tree %s 缺失，补齐中"
+                      % (s[:8], tree[:8]), file=sys.stderr)
+                ensure_tree(root, tree, token, stats)
             stack.extend(parents)          # 本地已有 → 继续上溯找断点
             continue
         info = api_get("/repos/%s/commits/%s" % (REPO, s), token)

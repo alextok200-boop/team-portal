@@ -21,6 +21,8 @@ var API = (function () {
     lastLogin: 'portal_lastlogin',       // {uid: iso} 独立存放，避免登录时重写用户表
     content: 'portal_content',           // 内容表：本机覆盖层
     contentRemote: 'portal_content_remote',
+    // 自动提交配置（GitHub Token 等）。★ 只存本机、绝不进仓库 —— 见 §自动提交
+    ghCfg: 'portal_gh_cfg',
     roles: 'portal_roles',
     logs:  'portal_logs'
   };
@@ -164,6 +166,132 @@ var API = (function () {
       username: u ? u.username : 'local', name: u ? u.name : '', role: u ? u.role : '',
       ok: true, reason: reason, ip: 'local'
     });
+  }
+
+  /* ══ 自动提交（GitHub Contents API）═════════════════════════
+     把「导出文件 → 手工 git 提交」升级成管理后台一键完成。
+
+     安全边界（必须保持）：
+     - Token 只存在**本机浏览器的 localStorage**（K.ghCfg），
+       绝不写进仓库、也绝不随 users.json / content.json 导出泄漏。
+     - 建议用 fine-grained PAT，只授权**本仓库**的 Contents: Read and write。
+     - 怀疑泄漏就去 GitHub 撤销重发一个，本机删掉配置即可。
+     ══════════════════════════════════════════════════════ */
+  var GH_API = 'https://api.github.com';
+
+  function loadGhCfg() { return readJSON(K.ghCfg, null) || {}; }
+  function saveGhCfg(c) { writeJSON(K.ghCfg, c); }
+  function clearGhCfg() { try { localStorage.removeItem(K.ghCfg); } catch (e) { } }
+
+  /* 从 Pages 域名/路径推断 owner/repo（本地跑时只推得出 repo，owner 要手填） */
+  function inferRepo() {
+    var m = /^([^.]+)\.github\.io$/i.exec(location.hostname);
+    var seg = location.pathname.split('/').filter(Boolean);
+    return { owner: m ? m[1] : '', repo: seg.length ? seg[0] : '' };
+  }
+
+  /* UTF-8 安全的 base64（文件里有中文） */
+  function b64utf8(str) {
+    var bytes = new TextEncoder().encode(str), bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function brief(t) { return String(t || '').replace(/\s+/g, ' ').slice(0, 160); }
+
+  function ghHeaders(cfg) {
+    return {
+      'Authorization': 'Bearer ' + cfg.token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+  }
+
+  /* 校验 token + 仓库可达（保存配置前先跑一次，早失败好过发布时才发现） */
+  function ghProbe(cfg) {
+    return fetch(GH_API + '/repos/' + cfg.owner + '/' + cfg.repo, { headers: ghHeaders(cfg), cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 401) throw new Error('Token 无效或已过期（401）');
+        if (r.status === 404) throw new Error('仓库不存在，或该 Token 无权访问（404）');
+        if (!r.ok) return r.text().then(function (t) { throw new Error('校验失败 HTTP ' + r.status + '：' + brief(t)); });
+        return r.json().then(function (d) {
+          return {
+            fullName: d.full_name || (cfg.owner + '/' + cfg.repo),
+            defaultBranch: d.default_branch || 'main',
+            canPush: !!(d.permissions && d.permissions.push)
+          };
+        });
+      });
+  }
+
+  /* 提交单个文件。文件已存在时**必须带 sha** —— Contents API 的乐观锁：
+     拿的是读到的那个 sha，期间远端变了就会 409，而不是被默默覆盖。 */
+  function ghPutFile(cfg, path, text, message) {
+    var url = GH_API + '/repos/' + cfg.owner + '/' + cfg.repo + '/contents/' + path;
+    var h = ghHeaders(cfg);
+    function mapErr(r, phase) {
+      if (r.status === 401) return 'Token 无效或已过期（401）';
+      if (r.status === 403) return 'Token 权限不足（403）：需要该仓库的 Contents 读写权限';
+      if (r.status === 409) return '仓库刚被别处更新（可能是 GitHub Actions 或另一次发布），请刷新后重试';
+      if (r.status === 404) return '仓库 / 分支不存在（404）：请检查 owner、repo、branch';
+      return phase + ' ' + path + ' 失败 HTTP ' + r.status;
+    }
+    return fetch(url + '?ref=' + encodeURIComponent(cfg.branch), { headers: h, cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 404) return null;                 // 文件还不存在 → 新建
+        if (!r.ok) throw new Error(mapErr(r, '读取'));
+        return r.json().then(function (d) { return d && d.sha; });
+      })
+      .then(function (sha) {
+        var body = { message: message, content: b64utf8(text), branch: cfg.branch };
+        if (sha) body.sha = sha;
+        var putHeaders = Object.assign({ 'Content-Type': 'application/json' }, h);
+        return fetch(url, { method: 'PUT', headers: putHeaders, body: JSON.stringify(body) });
+      })
+      .then(function (r) {
+        if (!r.ok) {
+          return r.text().then(function (t) {
+            throw new Error(mapErr(r, '提交') + '：' + brief(t));
+          });
+        }
+        return r.json().then(function (d) {
+          var c = (d && d.commit) || {};
+          return { path: path, commit: c.sha || '', commitUrl: c.html_url || '' };
+        });
+      });
+  }
+
+  /* 与「导出用户配置」共用同一份构造逻辑 —— 保证一键提交写进仓库的格式
+     和手工导出的**完全一致**，不会出现两条路两种格式。 */
+  function buildUsersPayload() {
+    var p = usersStore.exportPayload();
+    p.users = p.users.map(function (u) {
+      return {
+        id: u.id, username: u.username, name: u.name, role: u.role,
+        passwordHash: u.passwordHash, active: u.active !== false,
+        builtin: false, createdAt: u.createdAt || new Date().toISOString(), lastLogin: null
+      };
+    });
+    return p;
+  }
+  function buildContentPayload() { return contentStore.exportPayload(); }
+
+  function pendingCounts() {
+    var u = buildUsersPayload(), c = buildContentPayload();
+    return { users: u.users.length, content: c.items.length, deleted: u.deleted.length + c.deleted.length };
+  }
+
+  /* ★ 绝不回传 token 本身，只给后 4 位用于确认「填的是哪一把」 */
+  function publishStatus() {
+    var cfg = loadGhCfg(), guess = inferRepo();
+    return {
+      configured: !!cfg.token,
+      tokenTail: cfg.token ? String(cfg.token).slice(-4) : '',
+      owner: cfg.owner || guess.owner,
+      repo: cfg.repo || guess.repo,
+      branch: cfg.branch || 'main',
+      guess: guess,
+      pending: pendingCounts()
+    };
   }
 
   function loadRoles() {
@@ -380,14 +508,7 @@ var API = (function () {
     if (url === '/api/users/export' && method === 'GET') {
       if (!isAdmin()) return err(403, '需要管理员权限');
       return withUsers(function () {
-        var uPayload = usersStore.exportPayload();
-        uPayload.users = uPayload.users.map(function (u) {
-          return {
-            id: u.id, username: u.username, name: u.name, role: u.role,
-            passwordHash: u.passwordHash, active: u.active !== false,
-            builtin: false, createdAt: u.createdAt || new Date().toISOString(), lastLogin: null
-          };
-        });
+        var uPayload = buildUsersPayload();
         return ok(200, {
           payload: uPayload,
           stats: { total: loadUsers().length, exported: uPayload.users.length, deleted: uPayload.deleted.length }
@@ -541,6 +662,101 @@ var API = (function () {
         return ok(200, {
           payload: cPayload,
           stats: { total: loadContent().length, exported: cPayload.items.length, deleted: cPayload.deleted.length }
+        });
+      });
+    }
+
+    /* ══ 自动提交（admin）══════════════════════════════
+       把待发布的差异直接 PUT 进仓库，省掉「下载文件 → 手工覆盖 → git 提交」。
+       Token 只在本机，不进仓库、不进导出。详见上方 §自动提交 注释。 ══ */
+    if (url === '/api/publish/status' && method === 'GET') {
+      if (!isAdmin()) return err(403, '需要管理员权限');
+      return withUsers(function () {
+        return withContent(function () { return ok(200, publishStatus()); });
+      });
+    }
+
+    if (url === '/api/publish/config' && method === 'POST') {
+      if (!isAdmin()) return err(403, '需要管理员权限');
+      var gt = String(body.token || '').trim();
+      if (!gt) return err(400, '请填写 GitHub Token');
+      var guess2 = inferRepo();
+      var gOwner = String(body.owner || '').trim() || guess2.owner;
+      var gRepo = String(body.repo || '').trim() || guess2.repo;
+      var gBranch = String(body.branch || '').trim() || 'main';
+      if (!gOwner || !gRepo) return err(400, '请填写仓库 owner 与 repo');
+      var probeCfg = { token: gt, owner: gOwner, repo: gRepo, branch: gBranch };
+      // 保存前先验一次：Token 错/仓库无权限，此刻就该报出来
+      return ghProbe(probeCfg).then(function (info) {
+        saveGhCfg(probeCfg);
+        var cu1 = currentUser();
+        if (cu1) appendLog({ time: new Date().toISOString(), username: cu1.username, name: cu1.name, role: cu1.role, ok: true, reason: '配置自动提交：' + gOwner + '/' + gRepo + '@' + gBranch, ip: 'local' });
+        return ok(200, { saved: true, repo: info });
+      }).catch(function (e) {
+        return err(400, String((e && e.message) || e));
+      });
+    }
+
+    if (url === '/api/publish/config' && method === 'DELETE') {
+      if (!isAdmin()) return err(403, '需要管理员权限');
+      clearGhCfg();
+      var cu2 = currentUser();
+      if (cu2) appendLog({ time: new Date().toISOString(), username: cu2.username, name: cu2.name, role: cu2.role, ok: true, reason: '清除自动提交配置（本机）', ip: 'local' });
+      return ok(200, { cleared: true });
+    }
+
+    if (url === '/api/publish' && method === 'POST') {
+      if (!isAdmin()) return err(403, '需要管理员权限');
+      var pcfg = loadGhCfg();
+      if (!pcfg.token) return err(400, '尚未配置 GitHub Token，请先在「自动提交」里填写并保存');
+      return withUsers(function () {
+        return withContent(function () {
+          var up = buildUsersPayload(), cp = buildContentPayload();
+          var want = (body && Array.isArray(body.targets)) ? body.targets : null;
+          var jobs = [];
+          if ((!want || want.indexOf('users') !== -1) && (up.users.length || up.deleted.length)) {
+            jobs.push({ key: 'users', path: 'data/users.json', text: JSON.stringify(up, null, 2) + '\n', n: up.users.length, d: up.deleted.length });
+          }
+          if ((!want || want.indexOf('content') !== -1) && (cp.items.length || cp.deleted.length)) {
+            jobs.push({ key: 'content', path: 'data/content.json', text: JSON.stringify(cp, null, 2) + '\n', n: cp.items.length, d: cp.deleted.length });
+          }
+          if (!jobs.length) return ok(200, { published: [], message: '没有待发布的改动' });
+
+          var pmsg = String((body && body.message) || '').trim() ||
+            ('portal: 管理后台更新共享数据（' + jobs.map(function (j) { return j.path.split('/').pop(); }).join(' + ') + '）');
+
+          var results = [];
+          var chain = Promise.resolve();                 // 串行提交，避免并发写同一个 ref
+          jobs.forEach(function (j) {
+            chain = chain.then(function () {
+              return ghPutFile(pcfg, j.path, j.text, pmsg).then(function (r) {
+                results.push({ key: j.key, path: j.path, ok: true, count: j.n, deleted: j.d, commit: r.commit, commitUrl: r.commitUrl });
+              }, function (e) {
+                // 失败也要如实回报「试过哪个文件」—— 否则界面只知道"失败了"，
+                // 分不清是第一个文件就挂还是第二个才挂
+                results.push({ key: j.key, path: j.path, ok: false, count: j.n, deleted: j.d, error: String((e && e.message) || e) });
+                throw e;
+              });
+            });
+          });
+          return chain
+            .then(function () {
+              // 提交成功后重新拉取：来源列会从「待发布」变成「仓库」
+              return usersStore.refresh().then(function () { return contentStore.refresh(); });
+            })
+            .then(function () {
+              var cu3 = currentUser();
+              if (cu3) appendLog({
+                time: new Date().toISOString(), username: cu3.username, name: cu3.name, role: cu3.role, ok: true,
+                reason: '一键发布到仓库：' + results.map(function (r) { return r.path.split('/').pop() + '(' + r.count + ')'; }).join('、'),
+                ip: 'local'
+              });
+              return ok(200, { published: results, repo: pcfg.owner + '/' + pcfg.repo + '@' + pcfg.branch });
+            })
+            .catch(function (e) {
+              // 一个文件失败就不再继续；已成功的部分如实回报（不做静默回滚）
+              return Promise.resolve({ ok: false, _status: 500, error: String((e && e.message) || e), published: results });
+            });
         });
       });
     }

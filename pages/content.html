@@ -22,8 +22,9 @@
   <!-- 共享清单加载失败告警（拉不到 data/content.json 时，同事看到的列表是残缺的） -->
   <div class="notice" id="sharedNotice">
     清单存在两处：<strong>仓库</strong>（data/content.json，全站可见）与<strong>本机</strong>（你这台浏览器）。
-    门户是纯静态托管，浏览器没有服务端可写 —— 所以在这里新增或编辑后，
-    <strong>必须点「导出内容配置」下载 content.json、覆盖仓库里的 data/content.json 并提交</strong>，同事才看得到。
+    门户是纯静态托管，浏览器没有服务端可写 —— 所以在这里新增或编辑后，要把改动送到仓库（二选一）：<br>
+    · 已在「管理后台 → 自动提交」配好 Token：点 <strong>「一键发布到仓库」</strong> 直接提交；<br>
+    · 没配：点「导出内容配置」下载 content.json，覆盖仓库里的 data/content.json 并提交。<br>
     只在本机的改动会在列表里标 <span class="tag tag-pink">待发布</span>。
   </div>
 
@@ -31,6 +32,7 @@
     <input type="search" id="kw" class="input" placeholder="搜索标题 / 负责人 / 渠道">
     <select id="statusFilter" class="input" style="min-width:132px"></select>
     <span style="flex:1"></span>
+    <button class="btn btn-primary" id="btnPublish" hidden>一键发布到仓库</button>
     <button class="btn btn-ghost" id="btnExport" hidden>导出内容配置</button>
     <button class="btn btn-primary" id="btnNew" hidden>+ 新增内容</button>
   </div>
@@ -53,7 +55,7 @@
 
 <script src="js/config/roles.js?v=2.0.0"></script>
 <script src="js/datastore.js?v=2.5.0"></script>
-<script src="js/api.js?v=2.5.0"></script>
+<script src="js/api.js?v=2.6.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/portal.js?v=2.5.0"></script>
 <script>
@@ -164,12 +166,49 @@
       CAN_EDIT = !!res.canEdit;
       document.getElementById('permNotice').innerHTML =
         '<strong>权限提示：</strong>' + (CAN_EDIT
-          ? '你是管理员，可新增 / 编辑 / 删除；改动先落在本机，导出并提交后全站生效。'
+          ? '你是管理员，可新增 / 编辑 / 删除；改动先落在本机，发布（或导出提交）后全站生效。'
           : '团队成员为<strong>只读</strong>视图，可查看内容详情。');
       document.getElementById('btnNew').hidden = !CAN_EDIT;
       document.getElementById('btnExport').hidden = !CAN_EDIT;
       render();
       renderPending();
+      checkPublish();
+    });
+  }
+
+  /* 配了 GitHub Token 且本机有待发布内容时，才显示「一键发布到仓库」
+     —— 没配的人看到的还是「导出内容配置」那条手工路 */
+  function checkPublish() {
+    var btn = document.getElementById('btnPublish');
+    if (!btn) return;
+    return API.get('/api/publish/status').then(function (res) {
+      if (!res.ok) { btn.hidden = true; return; }
+      var n = (res.pending && res.pending.content) || 0;
+      btn.hidden = !(res.configured && CAN_EDIT);
+      btn.disabled = !n;
+      btn.textContent = n ? '一键发布到仓库（' + n + '）' : '一键发布到仓库';
+      btn.title = !res.configured
+        ? '请先在「管理后台 → 自动提交」配置 Token'
+        : (n ? '' : '没有待发布的内容');
+    });
+  }
+
+  function doPublish() {
+    var btn = document.getElementById('btnPublish');
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = '发布中…';
+    API.post('/api/publish', { targets: ['content'] }).then(function (res) {
+      btn.textContent = label;
+      if (!res.ok) {
+        Portal.toast('发布失败：' + (res.error || ''), 'error');
+      } else if (!res.published || !res.published.length) {
+        Portal.toast(res.message || '没有待发布的改动');
+      } else {
+        var x = res.published[0];
+        Portal.toast('已提交 data/content.json（' + x.count + ' 条）· commit ' +
+          String(x.commit).slice(0, 7) + '，约 1 分钟后生效');
+      }
+      load();
     });
   }
 
@@ -296,6 +335,7 @@
   document.getElementById('statusFilter').addEventListener('change', render);
   document.getElementById('btnNew').addEventListener('click', openNew);
   document.getElementById('btnExport').addEventListener('click', exportJson);
+  document.getElementById('btnPublish').addEventListener('click', doPublish);
 
   /* ══ 启动 ══ */
   Portal.boot({ title: '团队门户' }).then(function (u) {

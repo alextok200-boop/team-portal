@@ -20,6 +20,7 @@
     <button class="tab" data-tab="roles">角色权限</button>
     <button class="tab" data-tab="data">数据同步</button>
     <button class="tab" data-tab="logs">登录日志</button>
+    <button class="tab" data-tab="publish">自动提交</button>
   </div>
 
   <!-- ══ 用户管理 ══ -->
@@ -33,6 +34,7 @@
     <div class="toolbar">
       <input type="search" id="userSearch" class="input" placeholder="搜索姓名 / 账号">
       <button class="btn btn-ghost" id="btnExportUsers">导出用户配置</button>
+      <button class="btn btn-ghost" id="btnPublishUsers" hidden>一键发布到仓库</button>
       <button class="btn btn-primary" id="btnAddUser">+ 新增用户</button>
     </div>
     <div class="table-wrap">
@@ -86,11 +88,45 @@
       </table>
     </div>
   </section>
+
+  <!-- ══ 自动提交（GitHub） ══ -->
+  <section class="panel" id="panel-publish">
+    <div class="notice">
+      填一次 <strong>GitHub Token</strong>，以后「加人 / 发内容」点「一键发布到仓库」就直接提交，
+      不用再手工下载文件、覆盖仓库、跑 git 提交。<br>
+      <strong>安全说明：</strong>Token 只存在<strong>你这台浏览器</strong>里（localStorage）——
+      不会写进仓库，也不会随导出的 <code>users.json</code> / <code>content.json</code> 泄漏出去。
+      建议用 <strong>fine-grained PAT</strong>：只勾选<strong>本仓库</strong>的
+      <code>Contents: Read and write</code>，有效期给短一点。
+      怀疑泄漏就去 GitHub 撤销，回来点「清除配置」再填一把新的。
+    </div>
+
+    <div class="field"><label>仓库 owner</label><input id="ghOwner" placeholder="如：alextok200-boop" autocomplete="off"></div>
+    <div class="field"><label>仓库名 repo</label><input id="ghRepo" placeholder="如：team-portal" autocomplete="off"></div>
+    <div class="field"><label>分支 branch</label><input id="ghBranch" placeholder="main" autocomplete="off"></div>
+    <div class="field">
+      <label>GitHub Token（fine-grained PAT，需 Contents 读写）</label>
+      <input id="ghToken" type="password" placeholder="github_pat_… / ghp_…" autocomplete="off">
+    </div>
+
+    <div class="toolbar" style="margin-bottom:6px">
+      <button class="btn btn-primary" id="btnSaveGh">保存配置</button>
+      <button class="btn btn-ghost" id="btnClearGh">清除配置</button>
+      <span class="muted" id="ghState">加载中…</span>
+    </div>
+
+    <div class="notice" id="ghPendingBar" hidden></div>
+
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnPublishAll">一键发布到仓库</button>
+      <span class="muted" id="ghResult"></span>
+    </div>
+  </section>
 </main>
 
 <script src="js/config/roles.js?v=2.0.0"></script>
 <script src="js/datastore.js?v=2.5.0"></script>
-<script src="js/api.js?v=2.5.0"></script>
+<script src="js/api.js?v=2.6.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/portal.js?v=2.5.0"></script>
 <script>
@@ -267,6 +303,98 @@
     });
   }
 
+  /* ══ 自动提交（GitHub）══════════════════════════════════
+     Token 只在本机。提交内容与「导出用户配置」完全一致 ——
+     后端两条路共用同一份 payload 构造逻辑，不会出现两种格式。 ══ */
+  function loadPublishStatus() {
+    return API.get('/api/publish/status').then(function (res) {
+      if (!res.ok) return;
+      var p = res.pending || {};
+      var total = (p.users || 0) + (p.content || 0) + (p.deleted || 0);
+
+      var o = document.getElementById('ghOwner'), r = document.getElementById('ghRepo');
+      if (!o.value) o.value = res.owner || '';
+      if (!r.value) r.value = res.repo || '';
+      document.getElementById('ghBranch').value = res.branch || 'main';
+      document.getElementById('ghState').textContent = res.configured
+        ? '已配置（Token 尾号 ' + res.tokenTail + '）' : '未配置';
+
+      var bar = document.getElementById('ghPendingBar');
+      bar.hidden = false;
+      bar.style.textAlign = 'left';
+      if (total) {
+        bar.className = 'alert alert-error show';
+        bar.innerHTML = '待发布：用户 <strong>' + (p.users || 0) + '</strong> 条 · 内容 <strong>' +
+          (p.content || 0) + '</strong> 条' +
+          ((p.deleted || 0) ? ' · 删除 <strong>' + p.deleted + '</strong> 条' : '') + '。';
+      } else {
+        bar.className = 'notice';
+        bar.innerHTML = '当前没有待发布的改动 —— 本机与仓库一致。';
+      }
+
+      var pa = document.getElementById('btnPublishAll');
+      pa.disabled = !res.configured || !total;
+      pa.title = !res.configured ? '请先在下方保存 GitHub Token' : (total ? '' : '没有待发布的改动');
+      var pu = document.getElementById('btnPublishUsers');
+      pu.hidden = !res.configured;
+      pu.disabled = !total;
+    });
+  }
+
+  function runPublish(targets, btn) {
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = '发布中…';
+    var box = document.getElementById('ghResult');
+    box.textContent = '';
+    return API.post('/api/publish', { targets: targets }).then(function (res) {
+      btn.textContent = label;
+      if (!res.ok) {
+        box.textContent = '❌ ' + (res.error || '发布失败');
+        Portal.toast('发布失败：' + (res.error || ''), 'error');
+      } else if (!res.published || !res.published.length) {
+        box.textContent = res.message || '没有待发布的改动';
+        Portal.toast(res.message || '没有待发布的改动');
+      } else {
+        box.textContent = '✅ 已提交 ' + res.published.map(function (x) {
+          return x.path + '（' + x.count + ' 条 · commit ' + String(x.commit).slice(0, 7) + '）';
+        }).join('；');
+        Portal.toast('发布成功。GitHub Pages 约 1 分钟后生效');
+      }
+      return loadUsers().then(loadPublishStatus);
+    });
+  }
+
+  document.getElementById('btnSaveGh').addEventListener('click', function () {
+    var token = document.getElementById('ghToken').value.trim();
+    if (!token) return Portal.toast('请填写 GitHub Token', 'error');
+    var b = this;
+    b.disabled = true; b.textContent = '校验中…';
+    API.post('/api/publish/config', {
+      token: token,
+      owner: document.getElementById('ghOwner').value.trim(),
+      repo: document.getElementById('ghRepo').value.trim(),
+      branch: document.getElementById('ghBranch').value.trim() || 'main'
+    }).then(function (res) {
+      b.disabled = false; b.textContent = '保存配置';
+      if (!res.ok) { Portal.toast(res.error || '保存失败', 'error'); return; }
+      document.getElementById('ghToken').value = '';   // 不回显
+      Portal.toast('已保存：' + ((res.repo && res.repo.fullName) || '') + '（Token 只在本机）');
+      loadPublishStatus();
+    });
+  });
+
+  document.getElementById('btnClearGh').addEventListener('click', function () {
+    API.del('/api/publish/config').then(function (res) {
+      if (!res.ok) return Portal.toast(res.error || '清除失败', 'error');
+      document.getElementById('ghToken').value = '';
+      Portal.toast('已清除本机的 Token 配置');
+      loadPublishStatus();
+    });
+  });
+
+  document.getElementById('btnPublishAll').addEventListener('click', function () { runPublish(null, this); });
+  document.getElementById('btnPublishUsers').addEventListener('click', function () { runPublish(['users'], this); });
+
   /* ══ 角色权限 ══════════════════════════════ */
   function renderRoles() {
     document.getElementById('roleCards').innerHTML = Object.keys(ROLES).map(function (k) {
@@ -411,6 +539,7 @@
     loadRoles().then(loadUsers);
     loadData();
     loadLogs();
+    loadPublishStatus();
   });
 })();
 </script>
