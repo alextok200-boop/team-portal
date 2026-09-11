@@ -267,6 +267,12 @@ async function openPage(browser, ctx) {
     });
     check('有本机改动时显示待发布提示条', pend.hidden === false && /待发布|尚未发布/.test(pend.txt), JSON.stringify(pend));
     check('提示条为醒目样式', /alert-error/.test(pend.cls), pend.cls);
+    // 本套用例全程没配 GitHub Token，所以措辞必须走「导出」那条路，
+    // 且要顺带告诉用户有更省事的办法 —— 反过来配了 Token 时该说「一键发布」，
+    // 那条断言在 regress-publish-flow.js 的 ⑧ 里。
+    check('未配 Token → 引导导出并提示可配 Token 省事',
+      /导出内容配置/.test(pend.txt) && /自动提交/.test(pend.txt) && !/一键发布到仓库/.test(pend.txt),
+      pend.txt.slice(0, 110));
 
     /* ⑨ 共享清单 404 */
     console.log('\n⑨ 共享清单拉取失败时的可见性');

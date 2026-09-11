@@ -27,9 +27,11 @@
   <section class="panel active" id="panel-users">
     <div class="notice" id="sharedNotice">
       账号存在三处：<strong>源码内置</strong>（roles.js）、<strong>仓库名单</strong>（data/users.json）、<strong>仅本机</strong>（你这台浏览器）。
-      门户是纯静态托管，后台<strong>没有服务端可写</strong>——点「新增用户」只会落在你这台浏览器，
-      所以在这里新建或改密后，<strong>必须点「导出用户配置」下载 users.json、覆盖仓库里的 data/users.json 并提交</strong>，
-      同事才登录得上。只在本机的改动会在列表里标 <span class="tag tag-pink">待发布</span>。
+      门户是纯静态托管，后台<strong>没有服务端可写</strong>——点「新增用户」只会落在你这台浏览器。
+      在这里新建或改密后，要让同事也登录得上，二选一：<br>
+      <strong>① 一键发布到仓库</strong>（推荐，点一下就行；需先在「自动提交」页签填一次 GitHub Token）<br>
+      <strong>② 导出用户配置</strong> → 下载 users.json → 覆盖仓库里的 data/users.json 并提交<br>
+      只在本机的改动会在列表里标 <span class="tag tag-pink">待发布</span>。
     </div>
     <div class="toolbar">
       <input type="search" id="userSearch" class="input" placeholder="搜索姓名 / 账号">
@@ -93,11 +95,30 @@
   <section class="panel" id="panel-publish">
     <div class="notice">
       填一次 <strong>GitHub Token</strong>，以后「加人 / 发内容」点「一键发布到仓库」就直接提交，
-      不用再手工下载文件、覆盖仓库、跑 git 提交。<br>
-      <strong>安全说明：</strong>Token 只存在<strong>你这台浏览器</strong>里（localStorage）——
+      不用再手工下载文件、覆盖仓库、跑 git 提交。
+    </div>
+
+    <div class="notice">
+      <strong>① Token 怎么获取（一次性，大约 1 分钟）</strong><br>
+      打开
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener"
+         style="color:var(--neon-blue);text-decoration:underline">github.com/settings/personal-access-tokens/new</a><br>
+      → <strong>Token name</strong>：随便填，如 <code>team-portal 自动提交</code><br>
+      → <strong>Expiration</strong>：选个有效期（如 90 天，到期回来换一把）<br>
+      → <strong>Resource owner</strong>：选 <code>alextok200-boop</code><br>
+      → <strong>Repository access</strong>：选 <strong>Only select repositories</strong>，勾上 <code>team-portal</code><br>
+      → <strong>Permissions</strong> → 展开 <strong>Repository permissions</strong> → 找到
+        <strong>Contents</strong> 选 <strong>Read and write</strong>
+        <span class="muted">（只给这一项就够；Metadata 会自动带上只读）</span><br>
+      → 点底部 <strong>Generate token</strong>，复制以 <code>github_pat_</code> 开头的那串 ——
+        <strong>它只显示这一次，务必当场复制</strong><br>
+      → 回到本页粘进下面「GitHub Token」框，点「保存配置」。
+      <span class="muted">（经典 Token <code>ghp_</code> 也能用，但必须勾整个 <code>repo</code> 权限、范围过大，不推荐。）</span>
+    </div>
+
+    <div class="notice">
+      <strong>② 安全说明：</strong>Token 只存在<strong>你这台浏览器</strong>里（localStorage）——
       不会写进仓库，也不会随导出的 <code>users.json</code> / <code>content.json</code> 泄漏出去。
-      建议用 <strong>fine-grained PAT</strong>：只勾选<strong>本仓库</strong>的
-      <code>Contents: Read and write</code>，有效期给短一点。
       怀疑泄漏就去 GitHub 撤销，回来点「清除配置」再填一把新的。
     </div>
 
@@ -138,6 +159,16 @@
   var USERS = [];
 
   var esc = Portal.esc;
+
+  /* 是否已配好 GitHub Token（由 loadPublishStatus 回填）。
+     增删改用户后的提示语据此在「一键发布」与「导出后手工提交」之间切换 ——
+     别让已经配好 Token 的人还被告知去下载文件。 */
+  var PUBLISH_READY = false;
+  function pendingHint() {
+    return PUBLISH_READY
+      ? '仅本机生效 —— 点上方「一键发布到仓库」即可全站生效'
+      : '仅本机生效，请导出并提交';
+  }
 
   /* ── 标签页切换 ─────────────────────────────── */
   document.getElementById('tabs').addEventListener('click', function (e) {
@@ -215,7 +246,7 @@
             active: document.getElementById('mActive').value === '1'
           }).then(function (res) {
             if (!res.ok) return Portal.toast(res.error || '保存失败', 'error');
-            Portal.toast('已保存（仅本机生效，请导出并提交）'); closeModal(); loadUsers();
+            Portal.toast('已保存（' + pendingHint() + '）'); closeModal(); loadUsers();
           });
         });
     }
@@ -226,7 +257,7 @@
         function () {
           API.put('/api/users/' + u.id, { password: document.getElementById('mPwd').value }).then(function (res) {
             if (!res.ok) return Portal.toast(res.error || '重置失败', 'error');
-            Portal.toast('密码已重置（仅本机生效，请导出并提交）'); closeModal();
+            Portal.toast('密码已重置（' + pendingHint() + '）'); closeModal();
           });
         });
     }
@@ -235,7 +266,7 @@
       if (!confirm('确认删除用户「' + u.name + '（' + u.username + '）」？此操作不可撤销。')) return;
       API.del('/api/users/' + u.id).then(function (res) {
         if (!res.ok) return Portal.toast(res.error || '删除失败', 'error');
-        Portal.toast('已删除（仅本机生效，请导出并提交）'); loadUsers();
+        Portal.toast('已删除（' + pendingHint() + '）'); loadUsers();
       });
     }
   });
@@ -254,7 +285,7 @@
           role: document.getElementById('mRole').value
         }).then(function (res) {
           if (!res.ok) return Portal.toast(res.error || '创建失败', 'error');
-          Portal.toast('已创建（仅本机生效，请点「导出用户配置」并提交仓库）'); closeModal(); loadUsers();
+          Portal.toast('已创建（' + pendingHint() + '）'); closeModal(); loadUsers();
         });
       });
   });
@@ -338,6 +369,8 @@
       var pu = document.getElementById('btnPublishUsers');
       pu.hidden = !res.configured;
       pu.disabled = !total;
+      // 供增删改后的提示语使用（见 pendingHint）
+      PUBLISH_READY = !!res.configured;
     });
   }
 

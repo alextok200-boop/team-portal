@@ -17,7 +17,8 @@
      ⑤ 冲突 409：错误可读且明确提示重试
      ⑥ 无待发布改动时的提示
      ⑦ 成员无权：status / publish / config 三个接口全 403
-     ⑧ UI：配了 Token 才出现「一键发布」，未配不出现
+     ⑧ UI：配了 Token 才出现「一键发布」，未配不出现；
+        且**文案随状态走**（配好的人不该再被指去下载文件 / 页签内要有 Token 获取入口）
      ⑨ 发布后**立即**归零：模拟 GitHub Pages 还是旧副本，验证不依赖回源
      ⑩ 清除配置
 
@@ -323,6 +324,13 @@ async function apiLogin(page, u, p) {
     });
     check('配了 Token 且有存量 → 按钮可见可点且带数量', ui.hidden === false && ui.disabled === false && /1/.test(ui.text), JSON.stringify(ui));
 
+    // 配好 Token 的人不该再被告知去下载文件 —— 提示语必须跟着状态走
+    const barTxt = await page.evaluate(() => {
+      var b = document.getElementById('pendingBar');
+      return (b && !b.hidden) ? b.textContent.replace(/\s+/g, ' ').trim() : '';
+    });
+    check('待发布提示条引导「一键发布」而非导出', /一键发布到仓库/.test(barTxt) && !/导出内容配置/.test(barTxt), barTxt.slice(0, 90));
+
     await page.goto(BASE + '/pages/admin.html', { waitUntil: 'domcontentloaded' });
     await new Promise(x => setTimeout(x, 900));
     const adm = await page.evaluate(() => {
@@ -342,6 +350,20 @@ async function apiLogin(page, u, p) {
     check('待发布条提示可见', /待发布/.test(adm.barText), adm.barText);
     check('用户页出现「一键发布」按钮', adm.publishBtn, JSON.stringify(adm));
     check('owner/repo 已回填', adm.ownerFilled === 'probe' && adm.repoFilled === 'team-portal', JSON.stringify(adm));
+
+    // v1.6.2：文案必须与功能一致 —— 说明里要提「一键发布」，页签里要写清 Token 怎么拿
+    const copy = await page.evaluate(() => {
+      const n = document.getElementById('sharedNotice');
+      const p = document.getElementById('panel-publish');
+      return {
+        notice: n ? n.textContent.replace(/\s+/g, ' ').trim() : '',
+        publish: p ? p.textContent.replace(/\s+/g, ' ').trim() : '',
+        tokenLink: !!(p && p.querySelector('a[href*="personal-access-tokens"]'))
+      };
+    });
+    check('用户管理说明已提「一键发布到仓库」', /一键发布到仓库/.test(copy.notice), copy.notice.slice(0, 80));
+    check('「自动提交」页签有获取 Token 的直达链接', copy.tokenLink, JSON.stringify(copy.tokenLink));
+    check('页签写明 Contents 读写 + 只选本仓库', /Contents/.test(copy.publish) && /Only select repositories/.test(copy.publish), '');
 
     /* ⑨ 发布成功后「待发布」必须**立刻**归零 —— 不能等 Pages 重建 */
     console.log('\n⑨ 发布后立即归零（模拟 Pages 仍是旧副本）');

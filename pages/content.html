@@ -67,6 +67,15 @@
   var TYPES = [];
   var STATUS = [];
   var CAN_EDIT = false;
+  /* 是否已配好 GitHub Token（由 checkPublish 回填）。提示条据此在
+     「一键发布」与「导出后手工提交」两种措辞间切换 —— 别让配好 Token 的人
+     还被告知去下载文件。 */
+  var PUBLISH_READY = false;
+  function pendingHint() {
+    return PUBLISH_READY
+      ? '仅本机生效 —— 点右上角「一键发布到仓库」即可全站生效'
+      : '仅本机生效，请导出并提交';
+  }
 
   var STATUS_TAG = { '已发布': 'tag-green', '草稿': 'tag-blue', '已归档': 'tag-gray' };
   var TYPE_ICON = { '文档': '📄', '图片': '🖼️', '视频': '🎬', '链接': '🔗' };
@@ -96,7 +105,9 @@
     if (!ITEMS.length) {
       tb.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="icon">📭</div>' +
         '还没有内容条目' + (CAN_EDIT
-          ? '<div class="muted" style="margin-top:8px">点右上角「+ 新增内容」开始。新增后记得导出并提交，同事才看得到。</div>'
+          ? '<div class="muted" style="margin-top:8px">点右上角「+ 新增内容」开始。新增后' +
+            (PUBLISH_READY ? '点「一键发布到仓库」提交，同事就看到了。'
+                           : '记得导出并提交，同事才看得到。') + '</div>'
           : '<div class="muted" style="margin-top:8px">等管理员在仓库清单里添加。</div>') +
         '</div></td></tr>';
       return;
@@ -138,7 +149,10 @@
     bar.className = 'alert alert-error show';
     bar.style.textAlign = 'left';
     bar.innerHTML = '⚠️ 本机有 <strong>' + n + '</strong> 条改动尚未发布到仓库 —— 同事看不到。' +
-      '点右上角「导出内容配置」下载后覆盖仓库 <code>data/content.json</code> 并提交即可全站生效。';
+      (PUBLISH_READY
+        ? '点右上角 <strong>「一键发布到仓库」</strong> 直接提交即可全站生效。'
+        : '点右上角「导出内容配置」下载后覆盖仓库 <code>data/content.json</code> 并提交即可全站生效；' +
+          '想省掉这一步，可去「管理后台 → 自动提交」配一次 GitHub Token。');
   }
 
   function renderSharedNotice() {
@@ -184,12 +198,14 @@
     return API.get('/api/publish/status').then(function (res) {
       if (!res.ok) { btn.hidden = true; return; }
       var n = (res.pending && res.pending.content) || 0;
-      btn.hidden = !(res.configured && CAN_EDIT);
+      PUBLISH_READY = !!(res.configured && CAN_EDIT);
+      btn.hidden = !PUBLISH_READY;
       btn.disabled = !n;
       btn.textContent = n ? '一键发布到仓库（' + n + '）' : '一键发布到仓库';
       btn.title = !res.configured
         ? '请先在「管理后台 → 自动提交」配置 Token'
         : (n ? '' : '没有待发布的内容');
+      renderPending();   // 措辞依赖 PUBLISH_READY，状态到手后要重画一次
     });
   }
 
@@ -258,7 +274,7 @@
       onSubmit: function () {
         API.post('/api/content', readForm()).then(function (res) {
           if (!res.ok) return Portal.toast(res.error || '创建失败', 'error');
-          Portal.toast('已创建（仅本机生效，请导出并提交）');
+          Portal.toast('已创建（' + pendingHint() + '）');
           Portal.closeModal(); load();
         });
       }
@@ -271,7 +287,7 @@
       onSubmit: function () {
         API.put('/api/content/' + encodeURIComponent(c.id), readForm()).then(function (res) {
           if (!res.ok) return Portal.toast(res.error || '保存失败', 'error');
-          Portal.toast('已保存（仅本机生效，请导出并提交）');
+          Portal.toast('已保存（' + pendingHint() + '）');
           Portal.closeModal(); load();
         });
       }
@@ -325,7 +341,7 @@
       if (!confirm('确认删除内容「' + c.title + '」？此操作不可撤销。')) return;
       API.del('/api/content/' + encodeURIComponent(c.id)).then(function (res) {
         if (!res.ok) return Portal.toast(res.error || '删除失败', 'error');
-        Portal.toast('已删除（仅本机生效，请导出并提交）');
+        Portal.toast('已删除（' + pendingHint() + '）');
         load();
       });
     }
