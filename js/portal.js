@@ -27,11 +27,21 @@ var Portal = (function () {
     });
   }
 
-  /* ── 渲染顶栏 ────────────────────────────────── */
+  /* ── 渲染顶栏 ──────────────────────────────────
+     nav: false 的页面（数据中心/数据指标/内容管理/成员管理/系统设置/登录日志）
+     对**能进管理后台的人**不再占顶栏 —— 这些入口已收进「管理后台 → 后台入口」。
+     进不了管理后台的角色（主管、成员）必须照旧保留：入口藏了又没给替代路径 = 把页面锁死。 */
+  function usesAdminHub() {
+    return Auth.canAccess('/pages/admin.html');
+  }
+
   function renderNav(user, nav, title) {
     var current = window.Site && Site.strip ? Site.strip(window.location.pathname) : window.location.pathname;
+    var hub = usesAdminHub();
     var links = (nav || []).filter(function (item) {
-      return Auth.canAccess(item.path);
+      if (!Auth.canAccess(item.path)) return false;
+      if (hub && item.nav === false) return false;
+      return true;
     }).map(function (item) {
       var active = current === item.path ? ' class="active"' : '';
       // 去前导 / 变相对路径，让 <base> 正确解析到子路径

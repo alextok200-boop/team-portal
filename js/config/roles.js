@@ -97,18 +97,27 @@ var DEFAULT_USERS = [
 ];
 
 /* ── 页面目录（导航 + 权限勾选）──────────────── */
+/* 页面目录 —— 同时是「顶栏导航」和「角色权限勾选框」的数据源。
+   ⚠️ 一个条目只能在这一份里存在，两处共用一个数组，**不要另抄一份**。
+
+   nav: false → **不进顶栏导航**，但仍留在目录里（否则「角色权限」勾选框会漏掉这些页面）。
+   只对**能进管理后台的人**生效：他们的这些入口已收进「管理后台 → 后台入口」，
+   顶栏不必再重复占位。进不了管理后台的角色（如团队主管、成员）照旧从顶栏进 ——
+   否则把入口藏了又没给替代路径，等于把页面锁死。
+
+   什么时候该打 nav: false：页面本质是「后台工具」，且只有管理后台能做主的角色才用得上。 */
 var PAGE_CATALOG = [
   { path: '/pages/board.html',     label: '业务数据看板', group: '核心' },
   { path: '/pages/dashboard.html', label: '工作台',       group: '核心' },
   { path: '/pages/data.html',      label: '日报数据',     group: '核心' },
-  { path: '/pages/tables.html',    label: '数据中心',     group: '核心' },
-  { path: '/pages/metrics.html',   label: '数据指标',     group: '数据' },
-  { path: '/pages/content.html',   label: '内容管理',     group: '内容' },
-  { path: '/pages/members.html',   label: '成员管理',     group: '数据' },
+  { path: '/pages/tables.html',    label: '数据中心',     group: '核心', nav: false },
+  { path: '/pages/metrics.html',   label: '数据指标',     group: '数据', nav: false },
+  { path: '/pages/content.html',   label: '内容管理',     group: '内容', nav: false },
+  { path: '/pages/members.html',   label: '成员管理',     group: '数据', nav: false },
   { path: '/pages/careers.html',   label: '加入我们',     group: '内容' },
   { path: '/pages/admin.html',     label: '管理后台',     group: '系统' },
-  { path: '/pages/settings.html',  label: '系统设置',     group: '系统' },
-  { path: '/pages/logs.html',      label: '登录日志',     group: '系统' }
+  { path: '/pages/settings.html',  label: '系统设置',     group: '系统', nav: false },
+  { path: '/pages/logs.html',      label: '登录日志',     group: '系统', nav: false }
 ];
 
 /* 会话有效期（毫秒）8 小时 */

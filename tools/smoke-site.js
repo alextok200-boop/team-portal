@@ -58,14 +58,16 @@ function allHtmlFiles() {
 function versionAudit() {
   const files = allHtmlFiles();
 
-  const targets = ['js/api.js', 'js/datastore.js', 'js/portal.js', 'css/portal.css'];
+  const targets = ['js/api.js', 'js/datastore.js', 'js/portal.js', 'js/config/roles.js', 'css/portal.css'];
   const seen = {};       // target -> { version -> [pages] }
   const missing = {};    // target -> [pages] 完全没引用
   const unversioned = []; // "page: target 没带 ?v="
 
   for (const file of files) {
     const rel = path.relative(REPO, file).split(path.sep).join('/');
-    const html = fs.readFileSync(file, 'utf8');
+    /* ⚠️ 必须先剥掉 HTML 注释：这是全文正则扫描，注释里提到「js/portal.js」这类字样
+       会被误判成「引用了却没带 ?v=」。注释不是引用。 */
+    const html = fs.readFileSync(file, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
     for (const t of targets) {
       const re = new RegExp(t.replace(/[.\/]/g, '\\$&') + '(\\?v=([A-Za-z0-9._-]+))?', 'g');
       const hits = [...html.matchAll(re)];
@@ -177,7 +179,8 @@ function check(name, cond, extra) {
     const refBad = [];
     for (const f of htmlFiles) {
       const rel = path.relative(REPO, f).split(path.sep).join('/');
-      const html = fs.readFileSync(f, 'utf8');
+      // 同样先剥掉 HTML 注释：注释里写「Portal.xxx」不该被当成"用了没引"
+      const html = fs.readFileSync(f, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
       const miss = RULES.filter(r => r.use.test(html) && html.indexOf(r.need) === -1).map(r => r.label);
       if (miss.length) refBad.push(rel + ' 用了 ' + miss.join('/') + ' 但未引入对应脚本');
     }

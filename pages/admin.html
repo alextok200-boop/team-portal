@@ -15,6 +15,18 @@
   <h1 class="page-title">管理后台</h1>
   <p class="page-sub">用户账号、角色权限、数据同步与登录审计</p>
 
+  <!-- ══ 后台入口 ══
+       这些页面已从顶栏收起（js/config/roles.js 的 PAGE_CATALOG 里标了 nav: false），
+       统一从这里进。谁能进本页谁才看得到这组入口 —— 见 js/portal.js usesAdminHub()。
+       数据源与顶栏是**同一份** PAGE_CATALOG，不另抄一份清单。 -->
+  <div id="adminEntriesWrap" hidden>
+    <h2 class="section-h" style="margin:26px 0 12px">
+      后台入口
+      <span class="muted" style="font-size:13px;font-weight:400">· 下列页面已从顶栏收起，从这里进</span>
+    </h2>
+    <div class="grid" id="adminEntries" style="margin-bottom:26px"></div>
+  </div>
+
   <div class="tabs" id="tabs">
     <button class="tab active" data-tab="users">用户管理</button>
     <button class="tab" data-tab="roles">角色权限</button>
@@ -147,11 +159,11 @@
   </section>
 </main>
 
-<script src="js/config/roles.js?v=2.0.0"></script>
+<script src="js/config/roles.js?v=2.1.0"></script>
 <script src="js/datastore.js?v=2.5.0"></script>
 <script src="js/api.js?v=2.7.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
-<script src="js/portal.js?v=2.5.0"></script>
+<script src="js/portal.js?v=2.6.0"></script>
 <script>
 (function () {
   'use strict';
@@ -173,14 +185,25 @@
   }
 
   /* ── 标签页切换 ─────────────────────────────── */
+  function switchTab(name) {
+    var tab = document.querySelector('.tab[data-tab="' + name + '"]');
+    var panel = document.getElementById('panel-' + name);
+    if (!tab || !panel) return false;
+    [].forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
+    [].forEach.call(document.querySelectorAll('.panel'), function (x) { x.classList.remove('active'); });
+    tab.classList.add('active');
+    panel.classList.add('active');
+    return true;
+  }
   document.getElementById('tabs').addEventListener('click', function (e) {
     var t = e.target.closest('.tab');
     if (!t) return;
-    [].forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
-    [].forEach.call(document.querySelectorAll('.panel'), function (x) { x.classList.remove('active'); });
-    t.classList.add('active');
-    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    switchTab(t.dataset.tab);
   });
+  /* 「后台入口」的卡片用 pages/admin.html#roles 这种链接跳进来。
+     ⚠️ 站点有 <base href="/team-portal/">，**裸写 `#roles` 会被解析成 `/team-portal/#roles`**
+     （跳到首页去）—— 所以卡片一律写全 `pages/admin.html#…`，这里再把 hash 认回页签。 */
+  if (location.hash) switchTab(String(location.hash).replace(/^#/, ''));
 
   /* ── 弹窗（统一用 Portal.modal，页面不再自己维护 markup）───── */
   function openModal(title, bodyHtml, submitFn) {
@@ -568,9 +591,49 @@
     });
   });
 
+  /* ══ 后台入口 ═══════════════════════════════════════
+     数据源与顶栏**同一份** PAGE_CATALOG（取 nav: false 的那些），
+     不在这里另抄一份页面清单 —— 两份必然漂移。 ══ */
+  var ENTRY_ICONS = {
+    '/pages/tables.html': '📊', '/pages/metrics.html': '📈', '/pages/content.html': '📝',
+    '/pages/members.html': '👥', '/pages/settings.html': '⚙️', '/pages/logs.html': '🕘'
+  };
+  var ENTRY_DESC = {
+    '/pages/tables.html': '钉钉日报追踪表原始明细，多表浏览',
+    '/pages/metrics.html': '指标口径与逐日明细',
+    '/pages/content.html': '内容条目增删改查（成员只读）',
+    '/pages/members.html': '角色与可访问页面 —— 本页「角色权限」页签可直接改',
+    '/pages/settings.html': '站点参数与数据源配置',
+    '/pages/logs.html': '登录审计记录 —— 与本页「登录日志」页签同一份数据'
+  };
+  /* 这两页在本页已有等价（且可写）的页签，卡片直接落到页签上，
+     不再把人送去那个只读翻版。 */
+  var ENTRY_INPAGE = { '/pages/members.html': 'roles', '/pages/logs.html': 'logs' };
+
+  function renderEntries() {
+    return Portal.loadConfig().then(function (cfg) {
+      var list = (cfg.nav || []).filter(function (n) {
+        return n.nav === false && Auth.canAccess(n.path);
+      });
+      if (!list.length) return;
+      document.getElementById('adminEntries').innerHTML = list.map(function (n) {
+        var tab = ENTRY_INPAGE[n.path];
+        var href = tab ? ('pages/admin.html#' + tab) : n.path.replace(/^\//, '');
+        return '<a href="' + esc(href) + '" class="module-card">' +
+                 '<div class="module-icon">' + (ENTRY_ICONS[n.path] || '📄') + '</div>' +
+                 '<h3>' + esc(n.label) + '</h3>' +
+                 '<p>' + esc(ENTRY_DESC[n.path] || '') + '</p>' +
+                 '<span class="tag tag-green">' + (tab ? '就在本页 →' : '进入 →') + '</span>' +
+               '</a>';
+      }).join('');
+      document.getElementById('adminEntriesWrap').hidden = false;
+    });
+  }
+
   /* ══ 启动 ══════════════════════════════════ */
   Portal.boot({ title: '团队门户', roles: ['admin'] }).then(function (u) {
     if (!u) return;
+    renderEntries();
     loadRoles().then(loadUsers);
     loadData();
     loadLogs();

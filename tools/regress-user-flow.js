@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   regress-user-flow.js —— 账号全链路回归（26 项断言）
+   regress-user-flow.js —— 账号全链路回归（37 项断言）
 
    为什么会有这个脚本：
      v1.4.0 修过一个「新增用户登录总显示账号密码错误」的 bug ——
@@ -14,6 +14,9 @@
      ④ 删除源码内置账号 → deleted 墓碑 → 导出可同步
      ⑤ 非安全上下文（无 crypto.subtle）→ 明确报错，不是「账号密码错误」
      ⑥ 共享名单 404 → 管理后台顶部告警可见
+     ⑦ 顶栏收敛：管理类入口（nav: false）只收进「管理后台 → 后台入口」，
+        且**对进不了管理后台的角色必须保留**（藏入口又不给替代路径 = 页面锁死）；
+        后台入口与已有页签互链、hash 能直接落页签
 
    前置：
      1. 在仓库父目录起静态服务（让 /team-portal/ 映射到仓库）
@@ -223,6 +226,78 @@ async function apiLogin(page, u, p) {
           JSON.stringify(notice));
     check('告警里带「重试」按钮', notice.hasRetryBtn, JSON.stringify(notice));
     await page4.close();
+
+    /* ⑦ 管理类入口收进「管理后台」（顶栏不再重复占位）
+       规则：PAGE_CATALOG 里标 nav: false 的页面，对**能进管理后台的人**不占顶栏；
+       进不了管理后台的角色（主管/成员）必须照旧保留 —— 藏了入口又不给替代路径 = 把页面锁死。 */
+    console.log('\n⑦ 顶栏收敛：管理类入口只收进管理后台');
+    const NAV_PUBLIC = ['业务数据看板', '工作台', '日报数据', '加入我们'];
+    const NAV_HIDDEN = ['数据中心', '数据指标', '内容管理', '成员管理', '系统设置', '登录日志'];
+
+    const ctx7 = await browser.createBrowserContext();
+    const p7 = await ctx7.newPage();
+    await p7.goto(BASE + '/login.html', { waitUntil: 'domcontentloaded' });
+    r = await apiLogin(p7, 'admin', 'admin2026');
+    check('管理员登录', r.ok, JSON.stringify(r));
+
+    await p7.goto(BASE + '/pages/board.html', { waitUntil: 'networkidle0' });
+    const navA = await p7.evaluate(() =>
+      [].slice.call(document.querySelectorAll('.portal-nav-links a')).map(a => a.textContent.trim()));
+    check('管理员顶栏只剩公共页 + 管理后台',
+          navA.length === 5 && NAV_PUBLIC.every(l => navA.indexOf(l) !== -1) && navA.indexOf('管理后台') !== -1,
+          JSON.stringify(navA));
+    check('管理员顶栏不再出现那 6 个后台入口',
+          NAV_HIDDEN.every(l => navA.indexOf(l) === -1), JSON.stringify(navA));
+
+    await p7.goto(BASE + '/pages/admin.html', { waitUntil: 'networkidle0' });
+    await new Promise(x => setTimeout(x, 700));
+    const ent = await p7.evaluate(() => {
+      const wrap = document.getElementById('adminEntriesWrap');
+      return {
+        visible: !!(wrap && !wrap.hidden),
+        cards: [].slice.call(document.querySelectorAll('#adminEntries .module-card')).map(a => ({
+          label: a.querySelector('h3').textContent.trim(),
+          href: a.getAttribute('href')
+        }))
+      };
+    });
+    check('管理后台出现「后台入口」区且 6 张卡',
+          ent.visible && ent.cards.length === 6, 'visible=' + ent.visible + ' cards=' + ent.cards.length);
+    check('后台入口正好覆盖顶栏收起的那 6 项',
+          NAV_HIDDEN.every(l => ent.cards.some(c => c.label === l)),
+          JSON.stringify(ent.cards.map(c => c.label)));
+    // 成员管理 / 登录日志 在管理后台已有等价（且可写）页签 → 应当互链，而不是又跳去那个只读翻版
+    check('「成员管理 / 登录日志」互链到本页页签',
+          ent.cards.some(c => c.href === 'pages/admin.html#roles') &&
+          ent.cards.some(c => c.href === 'pages/admin.html#logs'),
+          JSON.stringify(ent.cards.map(c => c.href)));
+
+    // hash 落页签 —— ⚠️ 必须开**新页面**：只差 fragment 的 goto 属同文档导航，脚本不会重跑，会误判
+    const ph = await ctx7.newPage();
+    await ph.goto(BASE + '/pages/admin.html#logs', { waitUntil: 'networkidle0' });
+    await new Promise(x => setTimeout(x, 600));
+    const hashRes = await ph.evaluate(() => ({
+      tab: (document.querySelector('.tab.active') || {}).textContent,
+      panel: (document.querySelector('.panel.active') || {}).id
+    }));
+    check('pages/admin.html#logs 直接落在「登录日志」页签', hashRes.panel === 'panel-logs', JSON.stringify(hashRes));
+    await ph.close();
+
+    const p7m = await ctx7.newPage();
+    await p7m.goto(BASE + '/login.html', { waitUntil: 'domcontentloaded' });
+    r = await apiLogin(p7m, 'member', 'view2026');
+    check('团队成员登录', r.ok, JSON.stringify(r));
+    await p7m.goto(BASE + '/pages/board.html', { waitUntil: 'networkidle0' });
+    const navM = await p7m.evaluate(() =>
+      [].slice.call(document.querySelectorAll('.portal-nav-links a')).map(a => a.textContent.trim()));
+    check('进不了管理后台的角色**照旧保留**入口（否则页面被锁死）',
+          navM.indexOf('内容管理') !== -1 && navM.indexOf('数据中心') !== -1, JSON.stringify(navM));
+    check('成员看不到「管理后台」', navM.indexOf('管理后台') === -1, JSON.stringify(navM));
+
+    await p7m.goto(BASE + '/pages/admin.html', { waitUntil: 'domcontentloaded' });
+    await new Promise(x => setTimeout(x, 1200));
+    check('成员硬开管理后台被挡到 denied', /denied/.test(p7m.url()), p7m.url());
+    await ctx7.close();
 
   } finally {
     restoreFixture();

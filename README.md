@@ -86,22 +86,31 @@ team-portal/
 ├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
 ├── tools/fetch-remote-commit.py # 上述脚本的 API 兜底（github.com 不通时用）
 ├── tools/add-user.py            # ★ 命令行加/改/删账号（直接写 data/users.json）
-├── tools/regress-user-flow.js   # ★ 账号全链路回归（加号→登录→导出→删除 → 26 项断言）
-├── tools/regress-content-flow.js# ★ 内容全链路回归（新增→编辑→导出→删除 → 50 项断言）
-├── tools/regress-publish-flow.js# ★ 一键发布回归（GitHub API 全程模拟，不触真仓库 → 33 项断言）
+├── tools/regress-user-flow.js   # ★ 账号全链路回归（加号→登录→导出→删除→顶栏收敛 → 37 项断言）
+├── tools/regress-content-flow.js# ★ 内容全链路回归（新增→编辑→导出→删除 → 51 项断言）
+├── tools/regress-publish-flow.js# ★ 一键发布回归（GitHub API 全程模拟，不触真仓库 → 48 项断言）
 ├── tools/smoke-site.js          # ★ 全站 15 页冒烟（逐页查报错 + 版本号/引用自洽）
 └── .nojekyll                    # 防 Jekyll 处理
 ```
 
-**导航顺序**（登录后顶栏）：业务数据看板 → 工作台 → 日报数据 → 数据中心 → 数据指标 → 内容管理 → 成员管理 → 加入我们 → 管理后台 → 系统设置 → 登录日志
+**导航**（登录后顶栏）由 `js/config/roles.js` 的 `PAGE_CATALOG` 驱动，**同时**是「管理后台 → 角色权限」勾选框的数据源 —— 一份数据两处用，**不要另抄一份清单**。
+
+- 公共页（`业务数据看板 → 工作台 → 日报数据 → 加入我们`）任何角色都按权限显示；
+- `管理后台` 单独占一项；
+- 标了 **`nav: false`** 的页面（数据中心 / 数据指标 / 内容管理 / 成员管理 / 系统设置 / 登录日志）**不进顶栏**，改从「管理后台 → 后台入口」进。
+
+> ⚠️ **`nav: false` 只对能进管理后台的人生效**（见 `js/portal.js` 的 `usesAdminHub()`）。
+> `member` 能访问 `content`/`tables`，`team_leader` 能访问 `tables`/`metrics`/`members`，
+> 但他们**都进不了管理后台** —— 对这些角色若也把入口藏了，页面等于被锁死。
+> 所以规则是：**有管理后台可用的人收进后台，没有的人照旧走顶栏。**
 
 **角色权限**（`js/config/roles.js` 的 `DEFAULT_ROLES`）：
 
-| 角色 | 可访问页面 |
-|---|---|
-| `admin` | `['*']` 全部 |
-| `team_leader` | board / dashboard / data / tables / metrics / members / careers |
-| `member` | board / dashboard / data / tables / content / careers |
+| 角色 | 可访问页面 | 顶栏看到 |
+|---|---|---|
+| `admin` | `['*']` 全部 | 公共 4 项 + 管理后台 |
+| `team_leader` | board / dashboard / data / tables / metrics / members / careers | 含数据中心、数据指标、成员管理 |
+| `member` | board / dashboard / data / tables / content / careers | 含数据中心、内容管理 |
 
 
 ## ⚙️ 关键实现说明
@@ -381,7 +390,18 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 ## 📝 变更日志
 
-> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.7.0`，其余资源 `2.5.0`）。
+> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.7.0`、`js/portal.js` `2.6.0`、`js/config/roles.js` `2.1.0`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+
+- **v1.7.0**（2026-09-11）· 资源版本 `js/portal.js?v=2.5.0 → 2.6.0`、`js/config/roles.js?v=2.0.0 → 2.1.0`（`js/api.js` 仍 `2.7.0`）：
+  - 🧭 **顶栏收敛：管理类入口不再每页重复占位**。此前顶栏 11 项，其中 6 项（数据中心 / 数据指标 / 内容管理 / 成员管理 / 系统设置 / 登录日志）本质是后台工具，却出现在每一页。现在它们**不进顶栏**，统一从「**管理后台 → 后台入口**」进。管理员顶栏从 11 项缩到 **5 项**（公共 4 + 管理后台）。
+  - 🔗 **两个重复入口直接互链，不再跳去只读翻版**：「成员管理」本身就是管理后台「角色权限」的只读版、「登录日志」管理后台已有同名页签 —— 这两张卡直接落到本页页签（`pages/admin.html#roles` / `#logs`），并加 hash 支持让链接能真正落在对应页签上。
+  - ⚠️ **关键约束：`nav: false` 只对能进管理后台的人生效**。`member` 能访问 `content`/`tables`，`team_leader` 能访问 `tables`/`metrics`/`members`，但他们**都进不了管理后台** —— 对这些角色若也把入口藏了，页面等于被锁死。规则定为「有管理后台可用的人收进后台，没有的人照旧走顶栏」（`js/portal.js` 的 `usesAdminHub()`）。回归里**两个方向都断言**了。
+  - 🧩 **不新增第二份清单**：「后台入口」的数据源就是顶栏那份 `PAGE_CATALOG`（取 `nav === false` 的条目），只加一个字段，不抄数组 —— 两份必然漂移。
+  - ⚠️ **`<base href>` 陷阱**：卡片链接**不能**裸写 `#roles`（会被解析成 `/team-portal/#roles`，跳到首页去），必须写全 `pages/admin.html#roles`。
+  - 🐞 修掉冒烟测试的两处**假阳性**：它是对 HTML 全文做正则扫描，注释里提到 `js/portal.js`、`Portal.` 之类的字样会被误判成「引用了却没带 ?v= / 用了没引」。现在先剥掉 HTML 注释再匹配 —— **注释不是引用**。同时把 `js/config/roles.js` 纳入版本号巡检（它现在也驱动导航，漏检会漂移）。
+  - 🧪 回归 **26 → 37 项**：新增第 ⑦ 组（管理员顶栏只剩 5 项 / 那 6 项不再出现 / 后台入口 6 张卡 / 覆盖正确 / 互链到本页页签 / `#logs` 能落页签 / **成员照旧保留入口** / 成员看不到管理后台 / 硬开被挡到 denied）。
+    跑这条回归时踩到一个坑：`goto` 到**只差 fragment** 的 URL 属**同文档导航、脚本不重跑**，会误判成「hash 不生效」；必须开新页面才能测。
+  - 验证：账号 **37/37** · 内容 **51/51** · 发布 **48/48** · 全站冒烟 **23/23**，四套全绿（共 **159 项**）。
 
 - **v1.6.3**（2026-09-11）· 资源版本 `js/api.js?v=2.7.0`（其余仍 `2.5.0`）：
   - 🐞 **修：「已配置」可能是假绿**。v1.6.0 的保存校验只打 `GET /repos/{owner}/{repo}`，而这个端点**只需要 `Metadata: read`** —— 一个只勾了「元数据只读」的 Token 照样返回 200，界面显示「已配置」，等第一次点「一键发布」才炸出 403。更关键的是：响应里的 `permissions.push` 反映的是**账号在仓库里的角色**，不是 Token 的权限（GitHub 原话 *"A token cannot grant additional access capabilities to a user"*）—— 自己的仓库上它恒为 `true`，**跟 Token 勾了什么无关**。所以只靠该端点判定写权限，误判是必然的。
