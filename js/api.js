@@ -741,8 +741,24 @@ var API = (function () {
           });
           return chain
             .then(function () {
-              // 提交成功后重新拉取：来源列会从「待发布」变成「仓库」
-              return usersStore.refresh().then(function () { return contentStore.refresh(); });
+              /* 把**本次真正提交成功**的文件直接写进本地「仓库缓存」，让「待发布」立刻归零。
+                 为什么不能只靠下面的 refresh 回源：
+                 GitHub Pages 收到新提交后要几十秒才重建完，这期间回源拿到的还是**旧文件**，
+                 于是界面继续显示「待发布 N 条」、按钮继续可点 —— 用户以为没成功而重复点击。
+                 （实测：提交成功到页面数据更新之间约 40 秒，正是这个窗口。） */
+              var doneKeys = {};
+              results.forEach(function (r) { if (r.ok) doneKeys[r.key] = 1; });
+              jobs.forEach(function (j) {
+                if (!doneKeys[j.key]) return;
+                try {
+                  writeJSON(j.key === 'users' ? K.usersRemote : K.contentRemote, JSON.parse(j.text));
+                } catch (e) { /* 解析异常不该吞掉发布成功的结果 */ }
+              });
+              /* 没发布的那一类照常回源；已发布的跳过 —— 免得被 Pages 上的旧副本又盖回去 */
+              var rf = Promise.resolve();
+              if (!doneKeys.users) rf = rf.then(function () { return usersStore.refresh(); });
+              if (!doneKeys.content) rf = rf.then(function () { return contentStore.refresh(); });
+              return rf;
             })
             .then(function () {
               var cu3 = currentUser();

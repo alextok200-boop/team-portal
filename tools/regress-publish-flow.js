@@ -18,6 +18,8 @@
      ⑥ 无待发布改动时的提示
      ⑦ 成员无权：status / publish / config 三个接口全 403
      ⑧ UI：配了 Token 才出现「一键发布」，未配不出现
+     ⑨ 发布后**立即**归零：模拟 GitHub Pages 还是旧副本，验证不依赖回源
+     ⑩ 清除配置
 
    前置：仓库父目录起 python -m http.server 8971
    运行：node tools/regress-publish-flow.js
@@ -59,7 +61,9 @@ const mock = {
   sha: 'sha_initial',
   badToken: false,     // token 以 'bad' 开头 → 401
   noPush: false,       // 仓库不可写
-  forceConflict: false // PUT 一律 409
+  forceConflict: false, // PUT 一律 409
+  staleContent: null   // 非 null 时，页面拉 data/content.json 一律返回这份旧副本
+                       // —— 等价于「GitHub Pages 还没重建完」。用来验证发布后立即归零
 };
 let ghCalls = [];
 
@@ -139,6 +143,14 @@ async function attachMock(page) {
   page.on('request', req => {
     if (req.url().indexOf(GH) === 0) {
       return handleGh(req, req.headers()['origin']);
+    }
+    // 模拟「GitHub Pages 尚未重建」：站点自己的 data/*.json 一律回旧副本。
+    // 发布后若还依赖回源，这一条就会让「待发布」归不了零 —— 正是要防的场景。
+    if (mock.staleContent && /data\/content\.json/.test(req.url())) {
+      return req.respond({
+        status: 200, contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify(mock.staleContent)
+      });
     }
     return req.continue();
   });
@@ -331,8 +343,32 @@ async function apiLogin(page, u, p) {
     check('用户页出现「一键发布」按钮', adm.publishBtn, JSON.stringify(adm));
     check('owner/repo 已回填', adm.ownerFilled === 'probe' && adm.repoFilled === 'team-portal', JSON.stringify(adm));
 
-    /* ⑨ 清除配置 */
-    console.log('\n⑨ 清除配置');
+    /* ⑨ 发布成功后「待发布」必须**立刻**归零 —— 不能等 Pages 重建 */
+    console.log('\n⑨ 发布后立即归零（模拟 Pages 仍是旧副本）');
+    let pv0 = await page.evaluate(() => API.get('/api/publish/status').then(x => x.pending.content));
+    await page.evaluate(() => API.post('/api/content', { title: 'Pages 延迟验证条目', type: '文档', status: '草稿' }));
+    let pv = await page.evaluate(() => API.get('/api/publish/status').then(x => x.pending));
+    check('待发布内容增加 1 条', pv.content === pv0 + 1, JSON.stringify({ before: pv0, after: pv }));
+
+    // 把「站点上的旧副本」固定成发布前的内容：此后页面回源只会拿到它。
+    // 这正是真实世界里 GitHub Pages 还没重建完的那几十秒。
+    mock.staleContent = JSON.parse(fs.readFileSync(CONTENT_FILE, 'utf8'));
+    const pub2 = await page.evaluate(() => API.post('/api/publish', { targets: ['content'] })
+      .then(x => ({ s: x._status, ok: x.ok, n: (x.published || []).length })));
+    check('发布成功', pub2.s === 200 && pub2.ok && pub2.n === 1, JSON.stringify(pub2));
+
+    pv = await page.evaluate(() => API.get('/api/publish/status').then(x => x.pending));
+    check('不等 Pages 重建就归零（不靠回源）', pv.content === 0 && pv.users === 0, JSON.stringify(pv));
+
+    const srcAfter = await page.evaluate(() => API.get('/api/content').then(x => {
+      const it = (x.items || []).filter(i => i.title === 'Pages 延迟验证条目')[0] || {};
+      return it.source;
+    }));
+    check('来源列已变成「仓库」', srcAfter === 'remote', JSON.stringify(srcAfter));
+    mock.staleContent = null;
+
+    /* ⑩ 清除配置 */
+    console.log('\n⑩ 清除配置');
     const clr = await page.evaluate(() => API.del('/api/publish/config').then(x => ({ s: x._status, ok: x.ok })));
     check('清除成功', clr.s === 200 && clr.ok, JSON.stringify(clr));
     const st3 = await page.evaluate(() => API.get('/api/publish/status').then(x => ({ configured: x.configured, tail: x.tokenTail })));
