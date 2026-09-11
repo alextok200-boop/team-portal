@@ -76,10 +76,18 @@
       数据源：钉钉 AI 表格《电商营销备战-日报追踪表》。
       服务端已配置每日 <strong>11:00</strong> 与 <strong>17:00</strong> 各自动抓取一次（共两次）。
       抓取跑在 GitHub Actions 上、走钉钉 OpenAPI，<strong>不需要本机 dws 登录态</strong>；
-      GitHub 的定时任务在整点会排队，实际多半晚几分钟到十几分钟完成。
+      GitHub 的定时任务在整点会排队，实际多半晚几分钟到十几分钟完成。<br>
+      门户是纯静态托管、<strong>没有后端，本页无法直接抓取</strong> ——
+      要临时补一次，点下面按钮去 GitHub Actions 页面点 <strong>Run workflow</strong>。
     </div>
     <div class="toolbar">
-      <button class="btn btn-primary" id="btnRefresh">立即抓取最新数据</button>
+      <!-- 原来这里是个真按钮（id=btnRefresh），点了恒返回 501 —— 静态站根本没法在线抓取，
+           所以它只是个会弹错误的摆设。换成直达工作流的链接。
+           ⚠️ 仓库地址是写死的：本仓部署在 /team-portal/ 子路径，`<base href>` 同样写死，
+              不存在「换个仓库部署」的场景，链接跟着写死反而更可靠（无 JS 也能点）。 -->
+      <a class="btn btn-primary" id="btnFetchNow"
+         href="https://github.com/alextok200-boop/team-portal/actions/workflows/fetch.yml"
+         target="_blank" rel="noopener">去 GitHub 手动触发抓取 ↗</a>
       <span class="muted" id="fetchMeta"></span>
     </div>
     <div class="stats" id="dataStats"></div>
@@ -163,7 +171,7 @@
 
 <script src="js/config/roles.js?v=2.1.0"></script>
 <script src="js/datastore.js?v=2.5.0"></script>
-<script src="js/api.js?v=2.7.0"></script>
+<script src="js/api.js?v=2.8.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/portal.js?v=2.6.0"></script>
 <script>
@@ -532,7 +540,7 @@
       if (!res.ok || res.empty) {
         document.getElementById('fetchMeta').textContent = '';
         document.getElementById('dataStats').innerHTML = '';
-        tb.innerHTML = '<tr><td colspan="4" class="loading">尚未抓取数据，点击上方按钮手动抓取</td></tr>';
+        tb.innerHTML = '<tr><td colspan="4" class="loading">尚未抓取数据 —— 可用上方按钮去 GitHub Actions 手动触发一次</td></tr>';
         return;
       }
       var d = res.data;
@@ -552,16 +560,9 @@
     });
   }
 
-  document.getElementById('btnRefresh').addEventListener('click', function () {
-    var btn = this;
-    btn.disabled = true; btn.textContent = '抓取中…（约 10-60 秒）';
-    API.post('/api/data/refresh', {}).then(function (res) {
-      btn.disabled = false; btn.textContent = '立即抓取最新数据';
-      if (!res.ok) return Portal.toast(res.error || '抓取失败', 'error');
-      Portal.toast('抓取完成：' + res.totalRows + ' 行');
-      loadData();
-    });
-  });
+  /* 「手动触发抓取」不再需要 JS：上方那个是 <a>，直接把管理员送到 GitHub Actions 页。
+     原来是 <button> + API.post('/api/data/refresh')，而该接口恒返回 501（静态站没有服务端，
+     抓取只能在 Actions 里跑）—— 一个注定失败的按钮，已删除对应接口与这段处理。 */
 
   /* ══ 登录日志 ══════════════════════════════ */
   function loadLogs() {

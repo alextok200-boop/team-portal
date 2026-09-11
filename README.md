@@ -86,7 +86,7 @@ team-portal/
 ├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
 ├── tools/fetch-remote-commit.py # 上述脚本的 API 兜底（github.com 不通时用）
 ├── tools/add-user.py            # ★ 命令行加/改/删账号（直接写 data/users.json）
-├── tools/regress-user-flow.js   # ★ 账号全链路回归（加号→登录→导出→删除→顶栏收敛 → 37 项断言）
+├── tools/regress-user-flow.js   # ★ 账号全链路回归（加号→登录→导出→删除→顶栏收敛→抓取入口 → 40 项断言）
 ├── tools/regress-content-flow.js# ★ 内容全链路回归（新增→编辑→导出→删除 → 51 项断言）
 ├── tools/regress-publish-flow.js# ★ 一键发布回归（GitHub API 全程模拟，不触真仓库 → 48 项断言）
 ├── tools/smoke-site.js          # ★ 全站 15 页冒烟（逐页查报错 + 版本号/引用自洽）
@@ -392,7 +392,14 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 ## 📝 变更日志
 
-> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.7.0`、`js/portal.js` `2.6.0`、`js/config/roles.js` `2.1.0`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.8.0`、`js/portal.js` `2.6.0`、`js/config/roles.js` `2.1.0`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+
+- **v1.7.2**（2026-09-11）· 资源版本 `js/api.js?v=2.7.0 → 2.8.0`：
+  - 🔗 **把管理后台那个「立即抓取最新数据」死按钮换成直达 GitHub Actions 的链接**。那个按钮点下去**必然报错**：它打的是 `POST /api/data/refresh`，而该端点恒返回 501。纯静态站**没有服务端**，抓取只能在 GitHub Actions 里跑 —— 这个按钮从来就没工作过，只是个会弹错误的摆设。
+  - 🧹 **顺手删掉那个从未生效的 `/api/data/refresh` 端点**。留着一个永远返回 501 的接口，只会让后来人以为"是不是我环境没配好"。现在换成一个 `<a href=".../actions/workflows/fetch.yml" target="_blank">`：**无 JS 也能点**（不依赖任何脚本），点了就到手动触发页，找到 **Run workflow** 即可补抓一次。
+  - 📝 **同步修掉自相矛盾的文案**：`js/api.js` 里"数据尚未同步"的兜底提示还写着「请在本地运行抓取脚本，将 `data/daily.json` 更新后重新部署」—— 那是旧方案的说法，现在应指向 Actions。已改为「抓取跑在 GitHub Actions 上（每日 11:00 / 17:00），也可到 Actions 页面点 Run workflow 手动补一次」。
+  - 🧪 回归 **37 → 40 项**：新增第 ⑧ 组（抓取入口是 `<a>` 且指向 `actions/workflows/fetch.yml`、`target=_blank`；旧的 `btnRefresh` 按钮已从 DOM 移除）。
+  - 验证：账号 **40/40** · 内容 **51/51** · 发布 **48/48** · 全站冒烟 **23/23**，四套全绿（共 **162 项**）。
 
 - **v1.7.1**（2026-09-11）· 资源版本不变（**只动 HTML 与 workflow**，`?v=` 不动）：
   - ⏰ **抓取排期改为每日 11:00 与 17:00**（原 11:05 与 18:30）。改的是 `.github/workflows/fetch.yml` 的 cron —— **cron 是 UTC**，中国不实行夏令时所以 UTC+8 恒定：`0 3 * * *`（北京 11:00）+ `0 9 * * *`（北京 17:00）。

@@ -864,15 +864,16 @@ var API = (function () {
         .then(function (r) { return r.json(); })
         .then(function (d) { return ok(200, { empty: false, data: d }); })
         .catch(function () {
-          return ok(200, { empty: true, message: '尚未同步日报数据。请在本地运行抓取脚本，将 data/daily.json 更新后重新部署。' });
+          return ok(200, { empty: true, message: '尚未同步日报数据。抓取跑在 GitHub Actions 上（每日 11:00 / 17:00），也可到 Actions 页面点 Run workflow 手动补一次。' });
         });
     }
 
-    /* ── 数据刷新（静态版不支持）───────────────── */
-    if (url === '/api/data/refresh' && method === 'POST') {
-      if (!isAdmin()) return err(403, '需要管理员权限');
-      return err(501, '静态版不支持在线抓取。请在本机运行抓取脚本生成 data/daily.json 后推送到 GitHub。');
-    }
+    /* ── 数据刷新：**已移除** ─────────────────────
+       原来这里是 POST /api/data/refresh，恒返回 501「请在本机运行抓取脚本」。
+       但纯静态站没有服务端，抓取只能在 GitHub Actions 里跑，所以这个接口
+       从来没有真正工作过 —— 它只是让管理后台那个按钮变成"点了必报错"的摆设。
+       现在按钮换成直达 Actions 页的链接，这段也随之删掉（别留会骗人的代码）。
+       要手动补抓：GitHub → Actions → 钉钉日报数据抓取 → Run workflow。 */
 
     /* ── 日志 ──────────────────────────────────── */
     if (url === '/api/logs' && method === 'GET') {

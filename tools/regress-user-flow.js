@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   regress-user-flow.js —— 账号全链路回归（37 项断言）
+   regress-user-flow.js —— 账号全链路回归（40 项断言）
 
    为什么会有这个脚本：
      v1.4.0 修过一个「新增用户登录总显示账号密码错误」的 bug ——
@@ -17,6 +17,7 @@
      ⑦ 顶栏收敛：管理类入口（nav: false）只收进「管理后台 → 后台入口」，
         且**对进不了管理后台的角色必须保留**（藏入口又不给替代路径 = 页面锁死）；
         后台入口与已有页签互链、hash 能直接落页签
+     ⑧ 数据同步：抓取入口直达 GitHub Actions 工作流页（<a>），旧的死按钮已移除
 
    前置：
      1. 在仓库父目录起静态服务（让 /team-portal/ 映射到仓库）
@@ -298,6 +299,34 @@ async function apiLogin(page, u, p) {
     await new Promise(x => setTimeout(x, 1200));
     check('成员硬开管理后台被挡到 denied', /denied/.test(p7m.url()), p7m.url());
     await ctx7.close();
+
+    /* ⑧ 「数据同步」页签的抓取入口 = 跳 GitHub Actions（原先是个恒返 501 的死按钮）
+       静态站没有后端，抓取只能在 Actions 里跑 → 这里必须是 <a> 直达，不能是 <button>。 */
+    console.log('\n⑧ 数据同步：抓取入口直达 GitHub Actions');
+    const ctx8 = await browser.createBrowserContext();
+    const p8 = await ctx8.newPage();
+    await p8.goto(BASE + '/login.html', { waitUntil: 'domcontentloaded' });
+    r = await apiLogin(p8, 'admin', 'admin2026');
+    check('管理员登录（数据同步页）', r.ok, JSON.stringify(r));
+
+    await p8.goto(BASE + '/pages/admin.html', { waitUntil: 'networkidle0' });
+    await new Promise(x => setTimeout(x, 600));
+    const sync = await p8.evaluate(() => {
+      const el = document.getElementById('btnFetchNow');
+      return {
+        tag: el ? el.tagName : '',
+        href: el ? el.getAttribute('href') : '',
+        blank: el ? el.getAttribute('target') : '',
+        hasOldBtn: !!document.getElementById('btnRefresh')
+      };
+    });
+    check('抓取入口是直达 Actions 工作流的链接（<a>，新开窗口）',
+          sync.tag === 'A' && /github\.com\/alextok200-boop\/team-portal\/actions\/workflows\/fetch\.yml$/.test(sync.href) &&
+          sync.blank === '_blank',
+          JSON.stringify({ tag: sync.tag, href: sync.href, blank: sync.blank }));
+    check('旧的死按钮 btnRefresh 已移除',
+          !sync.hasOldBtn, 'hasOldBtn=' + sync.hasOldBtn);
+    await ctx8.close();
 
   } finally {
     restoreFixture();
