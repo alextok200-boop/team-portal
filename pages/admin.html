@@ -74,7 +74,9 @@
   <section class="panel" id="panel-data">
     <div class="notice">
       数据源：钉钉 AI 表格《电商营销备战-日报追踪表》。
-      服务端已配置每日 <strong>11:05</strong> 自动抓取（需本机 dws 处于登录态）。
+      服务端已配置每日 <strong>11:00</strong> 与 <strong>17:00</strong> 各自动抓取一次（共两次）。
+      抓取跑在 GitHub Actions 上、走钉钉 OpenAPI，<strong>不需要本机 dws 登录态</strong>；
+      GitHub 的定时任务在整点会排队，实际多半晚几分钟到十几分钟完成。
     </div>
     <div class="toolbar">
       <button class="btn btn-primary" id="btnRefresh">立即抓取最新数据</button>

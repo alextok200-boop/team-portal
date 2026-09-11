@@ -2,10 +2,15 @@ name: 钉钉日报数据抓取
 
 on:
   schedule:
-    # UTC 03:05 = 北京时间 11:05（抓当天上午录入）
-    - cron: '5 3 * * *'
-    # UTC 10:30 = 北京时间 18:30（抓当天下午录入，晚班也能看到当天数据）
-    - cron: '30 10 * * *'
+    # ⚠️ cron 是 UTC；中国不实行夏令时，UTC+8 恒定，所以这里不存在时区漂移。
+    # UTC 03:00 = 北京时间 11:00（抓当天上午录入）
+    - cron: '0 3 * * *'
+    # UTC 09:00 = 北京时间 17:00（抓当天下午录入）
+    - cron: '0 9 * * *'
+    # ⚠️ GitHub 明确说明：schedule 事件在负载高峰会延迟，而「整点」正是最拥堵的时段
+    #    （原文：delayed during periods of high loads… high load times include the start of every hour）。
+    #    所以这两个任务实际多半会在 11:0x–11:2x / 17:0x–17:2x 之间跑完，偶尔可能被跳过。
+    #    若哪天需要「必须准点」，把分钟错开到 :50（如 10:50 / 16:50）比整点更靠谱。
   workflow_dispatch:
     inputs:
       row_cap:

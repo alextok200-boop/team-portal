@@ -11,7 +11,7 @@
 |---|---|---|
 | 登录鉴权 | 服务端 scrypt 哈希 | **前端 SHA-256 哈希比对** |
 | 用户/角色管理 | 服务端落盘，全员共享 | **localStorage 本地存储**（admin 后台配置仅本浏览器生效） |
-| 日报数据 | 服务端每日 11:05 自动抓取 | **静态 JSON 快照**（本地抓取后推送更新） |
+| 日报数据 | 服务端每日 11:00 / 17:00 自动抓取 | **静态 JSON 快照**（GitHub Actions 抓取后推送更新） |
 | 会话 | HMAC 签名令牌 | localStorage 令牌（8 小时） |
 | 部署 | 需 Node 服务器 | **GitHub Pages 免费静态托管** |
 
@@ -82,7 +82,7 @@ team-portal/
 ├── assets/favicon.svg           # 站点图标
 ├── vendor/echarts.min.js        # ECharts 5.5.1（已入库，**不外链 CDN**）
 ├── scripts/fetch-openapi.js     # 钉钉 OpenAPI 抓取脚本（纯 OpenAPI，无需本机）
-├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:05）
+├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:00 与 17:00）
 ├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
 ├── tools/fetch-remote-commit.py # 上述脚本的 API 兜底（github.com 不通时用）
 ├── tools/add-user.py            # ★ 命令行加/改/删账号（直接写 data/users.json）
@@ -284,12 +284,14 @@ Pages 重建、不影响任何文件）。于是：
 `data/daily.json` 是钉钉 AI 表格《电商营销备战-日报追踪表》的静态快照，**全自动更新**：
 
 ```
-钉钉 AI 表格 → GitHub Actions（每天 11:05）→ scripts/fetch-openapi.js
+钉钉 AI 表格 → GitHub Actions（每天 11:00 与 17:00）→ scripts/fetch-openapi.js
              → data/daily.json → 自动 commit/push → 网站自动更新
 ```
 
 - 数据源 baseId：`OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4`（共 17 张表，抓取其中 9 张）
-- 定时器：`.github/workflows/fetch.yml`，**每日两次** —— UTC 03:05（北京 11:05）与 UTC 10:30（北京 18:30），另支持手动 `workflow_dispatch`
+- 定时器：`.github/workflows/fetch.yml`，**每日两次** —— UTC 03:00（北京 **11:00**）与 UTC 09:00（北京 **17:00**），另支持手动 `workflow_dispatch`
+  - ⚠️ **cron 是 UTC**。中国不实行夏令时，UTC+8 恒定，所以不存在时区漂移
+  - ⚠️ **别指望准点**：GitHub 明确说 `schedule` 在负载高峰会延迟，而**整点正是最拥堵的时段**（原文 *"high load times include the start of every hour"*）。实测多为 `11:0x–11:2x` / `17:0x–17:2x` 完成，偶尔可能被跳过。若哪天需要「必须准点看到」，把分钟错开到 `:50` 比整点更靠谱
 - 每表行数上限：**双层设计** —— `rawCap`（扫描多少原始行，默认 **20000**，分店铺表 16000/24000）+ `keepCap`（保留多少有效行，默认 8000）
 - ⚠️ **为什么要双层**：日报追踪表里预建了整年的**空白模板行**（只有日期/星期/促销节点）。单一上限会被空白行挤占，导致真数据被截断 —— 200 行上限时国内表只捞到 24 条有效记录，实际有 799 条
 - 默认上限定到 20000 的依据（2026-09-10 实测）：9 张表里最长的两张（投放 / 内容）各有 **7938 行**；上限若低于表长，`truncated` 会恒为真、误报「数据可能不完整」。上限只是天花板，表短则自然扫到表尾、不额外耗时
@@ -392,6 +394,11 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 > 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.7.0`、`js/portal.js` `2.6.0`、`js/config/roles.js` `2.1.0`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
 
+- **v1.7.1**（2026-09-11）· 资源版本不变（**只动 HTML 与 workflow**，`?v=` 不动）：
+  - ⏰ **抓取排期改为每日 11:00 与 17:00**（原 11:05 与 18:30）。改的是 `.github/workflows/fetch.yml` 的 cron —— **cron 是 UTC**，中国不实行夏令时所以 UTC+8 恒定：`0 3 * * *`（北京 11:00）+ `0 9 * * *`（北京 17:00）。
+  - ⚠️ **「整点」是 GitHub 定时任务最拥堵的时段**。官方文档明确 `schedule` 在负载高峰会延迟（*"high load times include the start of every hour"*），所以这两个任务实际多半在 `11:0x–11:2x` / `17:0x–17:2x` 跑完，偶尔可能被跳过。**要「必须准点」就该把分钟错开到 `:50`，而不是整点** —— 这条已写进 workflow 注释与本文档，免得以后有人以为是脚本慢。
+  - 🐞 **修掉一句错误的界面文案**：「需本机 dws 处于登录态」是旧方案的残留 —— 现在的抓取跑在 GitHub Actions 上、走钉钉 OpenAPI + GitHub Secrets，**根本不需要本机登录**（`scripts/fetch-openapi.js` 自己的注释就是这么写的）。管理后台「数据同步」页签与「系统设置」页的这两处已改。
+  - 验证：用 YAML 解析器严格校验工作流结构（cron 两段、`concurrency`、`permissions: contents: write`、`workflow_dispatch` 均在），并断言 cron 换算结果确为北京 11:00 / 17:00。四套回归全绿。
 - **v1.7.0**（2026-09-11）· 资源版本 `js/portal.js?v=2.5.0 → 2.6.0`、`js/config/roles.js?v=2.0.0 → 2.1.0`（`js/api.js` 仍 `2.7.0`）：
   - 🧭 **顶栏收敛：管理类入口不再每页重复占位**。此前顶栏 11 项，其中 6 项（数据中心 / 数据指标 / 内容管理 / 成员管理 / 系统设置 / 登录日志）本质是后台工具，却出现在每一页。现在它们**不进顶栏**，统一从「**管理后台 → 后台入口**」进。管理员顶栏从 11 项缩到 **5 项**（公共 4 + 管理后台）。
   - 🔗 **两个重复入口直接互链，不再跳去只读翻版**：「成员管理」本身就是管理后台「角色权限」的只读版、「登录日志」管理后台已有同名页签 —— 这两张卡直接落到本页页签（`pages/admin.html#roles` / `#logs`），并加 hash 支持让链接能真正落在对应页签上。
