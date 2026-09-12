@@ -102,7 +102,9 @@
 
       document.getElementById('srcBox').style.display = '';
       document.getElementById('srcName').textContent = D.source;
-      document.getElementById('srcTime').textContent = '最近同步：' + D.fetchedAtLocal;
+      /* 新鲜度用 fetchedAt（UTC ISO）算，展示用 fetchedAtLocal（北京字符串）—— 两者不可互替 */
+      document.getElementById('srcTime').innerHTML =
+        '最近同步：' + Portal.esc(D.fetchedAtLocal) + ' ' + Portal.freshnessTag(D.fetchedAt);
 
       /* ============ 1. 分店铺聚合（口径：国内 + 跨境） ============ */
       var agg = { domGmv: 0, domOrders: 0, domUv: 0, crossGmv: 0, crossOrders: 0, crossUv: 0, fee: 0 };

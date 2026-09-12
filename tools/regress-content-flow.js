@@ -17,6 +17,9 @@
      ⑦ 删除：本机条目直接消失；仓库条目走墓碑并进导出 deleted
      ⑧ 搜索 / 状态筛选
      ⑨ 共享清单 404 → 页面告警可见
+     ⑩ 数据过期的视觉提示：替换 data/daily.json 的时间戳，断言
+        data.html 渲染出 stale / ok / warn 三档、admin 与 board 也有标签
+        （stale 与 ok **互为反例**，避免"永远显示过期"的坏实现蒙混过关）
 
    前置：仓库父目录起 python -m http.server 8971
    运行：node tools/regress-content-flow.js
@@ -297,6 +300,79 @@ async function openPage(browser, ctx) {
     check('页面显示清单加载失败告警', /alert-error/.test(notice.cls) && /加载失败/.test(notice.txt), JSON.stringify(notice));
     check('告警带「重试」按钮', notice.retry, JSON.stringify(notice));
     await page3.close();
+
+    /* ⑩ 数据过期时的视觉提示 ──────────────────────────────
+       修的是「数据悄悄停更、页面上却看不出异常」：
+       抓取失败之后，页面照旧写着上次的同步时间，看着一切正常。
+       做法：把 data/daily.json 换成"指定小时数之前"的时间戳，断言页面
+       真的渲染出对应档位的标签。
+       ⚠️ 断言 data-fresh 属性而不是中文文案（文案会改，状态码不会）。
+       ⚠️ 两个档位**互为反例**：只测 stale 的话，一个"永远显示过期"的
+          坏实现也会绿 —— 这是本项目反复踩过的坑。 */
+    console.log('\n⑩ 数据过期时的视觉提示');
+    const dailyRaw = fs.readFileSync(path.join(REPO, 'data', 'daily.json'), 'utf8');
+    const ctxD = await browser.createBrowserContext();
+
+    const loginPageD = await ctxD.newPage();
+    await loginPageD.goto(BASE + '/login.html', { waitUntil: 'domcontentloaded' });
+    r = await apiLogin(loginPageD, 'admin', 'admin2026');
+    check('（⑩ 前置）admin 登录', r.ok, JSON.stringify(r));
+    await loginPageD.close();
+
+    /* 打开一页，把 daily.json 的时间戳替换成 hours 小时之前 */
+    async function badge(relPath, hours, sel) {
+      const page = await ctxD.newPage();
+      await page.setRequestInterception(true);
+      page.on('request', req => {
+        if (req.url().indexOf('data/daily.json') !== -1) {
+          const d = Object.assign({}, JSON.parse(dailyRaw), {
+            fetchedAt: new Date(Date.now() - hours * 3600e3).toISOString(),
+            fetchedAtLocal: '模拟 ' + hours + ' 小时前'
+          });
+          req.respond({
+            status: 200,
+            contentType: 'application/json; charset=utf-8',
+            body: JSON.stringify(d)
+          });
+          return;
+        }
+        req.continue();
+      });
+      await page.goto(BASE + relPath, { waitUntil: 'domcontentloaded' });
+      await new Promise(x => setTimeout(x, 1600));
+      const out = await page.evaluate(s => {
+        const box = document.querySelector(s);
+        const t = box ? box.querySelector('.fresh-tag') : null;
+        return {
+          level: t ? t.getAttribute('data-fresh') : '(无标签)',
+          text: t ? t.textContent.replace(/\s+/g, ' ') : '',
+          box: box ? box.textContent.replace(/\s+/g, ' ').slice(0, 90) : '(容器不存在)'
+        };
+      }, sel);
+      await page.close();
+      return out;
+    }
+
+    const staleData = await badge('/pages/data.html', 40, '#srcTime');
+    check('数据 40 小时未更新 → data.html 出现「已过期」标签',
+          staleData.level === 'stale' && /过期/.test(staleData.text), JSON.stringify(staleData));
+    check('过期标签带的时长是真实算出来的（不是写死文案）',
+          /40 小时|2 天/.test(staleData.text), JSON.stringify(staleData));
+
+    const okData = await badge('/pages/data.html', 3, '#srcTime');
+    check('数据 3 小时前刚更新 → 同一页显示「正常」标签（反例，排除"永远显示过期"的坏实现）',
+          okData.level === 'ok' && /正常/.test(okData.text), JSON.stringify(okData));
+
+    const warnData = await badge('/pages/data.html', 22, '#srcTime');
+    check('数据 22 小时未更新 → 显示「偏旧」（中间档位也要走到）',
+          warnData.level === 'warn' && /偏旧/.test(warnData.text), JSON.stringify(warnData));
+
+    const staleAdmin = await badge('/pages/admin.html', 40, '#fetchMeta');
+    check('管理后台「数据同步」也有过期标签（证明不是只有 data.html 接了）',
+          staleAdmin.level === 'stale', JSON.stringify(staleAdmin));
+
+    const staleBoard = await badge('/pages/board.html', 40, '#srcTime');
+    check('数据看板也有过期标签', staleBoard.level === 'stale', JSON.stringify(staleBoard));
 
   } finally {
     restoreFixture();

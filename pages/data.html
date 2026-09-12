@@ -27,7 +27,7 @@
 <script src="js/datastore.js?v=2.5.0"></script>
 <script src="js/api.js?v=2.9.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
-<script src="js/portal.js?v=2.6.0"></script>
+<script src="js/portal.js?v=2.7.0"></script>
 <script>
 (function () {
   'use strict';
@@ -53,7 +53,13 @@
         DATA.source + ' · ' + DATA.tableCount + ' 张表 / ' + DATA.totalRows + ' 行';
       document.getElementById('sourceBox').style.display = '';
       document.getElementById('srcName').textContent = DATA.source;
-      document.getElementById('srcTime').textContent = '最近同步：' + DATA.fetchedAtLocal;
+      /* 最近同步时间 + 新鲜度标签。
+         ⚠️ 两个字段不能互相替代：fetchedAtLocal 是 CI 生成的北京时间**展示字符串**
+            （给人看，格式随时可能变），新鲜度必须用 fetchedAt（UTC ISO）算时间差 ——
+            这样跟浏览者所在时区无关。抓取失败时页面照旧写着上次的时间、看着很正常，
+            标签是唯一能一眼看出「数据已经过期」的东西。 */
+      document.getElementById('srcTime').innerHTML =
+        '最近同步：' + Portal.esc(DATA.fetchedAtLocal) + ' ' + Portal.freshnessTag(DATA.fetchedAt);
 
       // 默认选中行数最多的表
       var best = DATA.tables.slice().sort(function (a, b) { return b.rowCount - a.rowCount; })[0];

@@ -65,3 +65,29 @@ jobs:
           # 远端可能已被其它推送（含人工 API 推送）推进，先 rebase 再推
           git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}"
           git push
+
+      # ⚠️ 失败了必须有人知道。
+      #    这两条定时任务跑在 GitHub 的机器上，失败只体现为 Actions 页面的一个红叉 ——
+      #    没有任何人会天天去看，结果就是「数据悄悄停止更新，门户页面上却看不出异常」。
+      #    if: failure() 表示前面**任一** step 失败才执行（抓取挂了、提交/推送撞车都会触发）。
+      #    脚本里已处理两种"发不出去"的情况（未配 Secret / 钉钉返回错误码），
+      #    且退出码恒为 0 —— 通知发不出去不该把 job 再弄红一次，否则真正的原因会被淹没。
+      #
+      #    ⚠️ 它兜不住「压根没跑」：GitHub 官方说明 schedule 在负载高峰可能被延迟甚至跳过，
+      #       被跳过时不会有 run，也就没有失败通知。那个场景由门户页面的
+      #       「⚠ 数据已过期」标签兜住（js/portal.js 的 freshness）。两者是互补关系。
+      #
+      #    需要配一个 Secret：DINGTALK_ROBOT_WEBHOOK
+      #      Value = 钉钉群 → 群设置 → 智能群助手 → 添加机器人 → 自定义 → Webhook 地址
+      #      安全设置选「自定义关键词」，关键词填：日报抓取
+      #    （没配只是不发通知、不会让构建失败，脚本会打 ::warning:: 提示怎么配。）
+      - name: 失败时推送钉钉群
+        if: failure()
+        env:
+          DINGTALK_ROBOT_WEBHOOK: ${{ secrets.DINGTALK_ROBOT_WEBHOOK }}
+        run: |
+          if [ ! -f scripts/notify-failure.js ]; then
+            echo "::warning::找不到 scripts/notify-failure.js（checkout 可能也失败了），跳过钉钉通知"
+            exit 0
+          fi
+          node scripts/notify-failure.js

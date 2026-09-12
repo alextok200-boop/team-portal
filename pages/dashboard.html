@@ -30,7 +30,7 @@
 <script src="js/datastore.js?v=2.5.0"></script>
 <script src="js/api.js?v=2.9.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
-<script src="js/portal.js?v=2.6.0"></script>
+<script src="js/portal.js?v=2.7.0"></script>
 <script>
 (function () {
   var ICONS = {
@@ -104,7 +104,11 @@
       var el = document.getElementById('stats');
       if (!d.ok || d.empty) return;
       el.insertAdjacentHTML('beforeend',
-        '<div class="stat" style="grid-column:1/-1"><div class="label">最近数据同步</div>' +
+        '<div class="stat" style="grid-column:1/-1">' +
+        /* 标签跟「最近数据同步」同行：抓取失败时这个卡照旧显示上次的时间、
+           看着很正常，只有标签能一眼看出数据已经过期。 */
+        '<div class="label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">' +
+        '最近数据同步 ' + Portal.freshnessTag(d.data.fetchedAt) + '</div>' +
         '<div class="value" style="font-size:18px">' + Portal.esc(d.data.fetchedAtLocal) +
         ' · ' + d.data.tableCount + ' 张表 / ' + d.data.totalRows + ' 行</div></div>');
     });

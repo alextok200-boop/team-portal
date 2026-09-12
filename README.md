@@ -57,7 +57,7 @@ team-portal/
 │   ├── datastore.js        # ★ 通用三源合并数据层（用户表 / 内容表共用一份实现）
 │   ├── api.js              # 静态版本地数据层（模拟原后端 API）
 │   ├── auth.js             # 认证与权限
-│   ├── portal.js           # 顶栏 / 守卫 / 提示
+│   ├── portal.js           # 顶栏 / 守卫 / 提示 / 数据新鲜度（freshness / freshnessTag）
 │   ├── board.js            # 业务数据看板的图表与聚合逻辑（ECharts）
 │   ├── landing.js          # ★ 加入我们：岗位数据 + 渲染（index / login / careers 三页共用一份）
 │   └── config/roles.js     # 默认角色 + 默认用户（密码哈希）
@@ -82,14 +82,15 @@ team-portal/
 ├── assets/favicon.svg           # 站点图标
 ├── vendor/echarts.min.js        # ECharts 5.5.1（已入库，**不外链 CDN**）
 ├── scripts/fetch-openapi.js     # 钉钉 OpenAPI 抓取脚本（纯 OpenAPI，无需本机）
-├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:00 与 17:00）
+├── scripts/notify-failure.js    # ★ 抓取失败时推钉钉群（由 workflow 的 if: failure() 步骤调用）
+├── .github/workflows/fetch.yml  # GitHub Actions 定时抓取（每日 11:00 与 17:00；失败推钉钉群）
 ├── tools/sync-local.sh          # 本地仓库对齐远端（API 推送后必跑）
 ├── tools/fetch-remote-commit.py # 上述脚本的 API 兜底（github.com 不通时用）
 ├── tools/add-user.py            # ★ 命令行加/改/删账号（直接写 data/users.json）
 ├── tools/regress-user-flow.js   # ★ 账号全链路回归（加号→登录→导出→删除→顶栏收敛→抓取入口→名单失败不误报 → 43 项断言）
-├── tools/regress-content-flow.js# ★ 内容全链路回归（新增→编辑→导出→删除 → 51 项断言）
+├── tools/regress-content-flow.js# ★ 内容全链路回归（新增→编辑→导出→删除→数据过期提示 → 58 项断言）
 ├── tools/regress-publish-flow.js# ★ 一键发布回归（GitHub API 全程模拟，不触真仓库 → 48 项断言）
-├── tools/smoke-site.js          # ★ 全站 15 页冒烟（逐页查报错 + 版本号/引用自洽 + 抓取脚本时区）
+├── tools/smoke-site.js          # ★ 全站 15 页冒烟（逐页查报错 + 版本号/引用自洽 + 抓取脚本时区 + 数据新鲜度 + 失败通知 → 43 项断言）
 └── .nojekyll                    # 防 Jekyll 处理
 ```
 
@@ -299,6 +300,13 @@ Pages 重建、不影响任何文件）。于是：
 - 抓取脚本带**指数退避重试**（网络抖动不再整表失败），输出 `truncated` / `emptyTables` / `failedTables` 元数据 —— **截断、空表、失败三种状态不再混淆**
 - 「空表」= 整表扫完（未到上限）却零有效行，属模板表尚未录入的正常状态；看板读 `emptyTables` 自动列出，**不在前端硬编码表名**
 - 所需 4 个 GitHub Secret：`DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET` / `DINGTALK_OPERATOR_ID` / `DINGTALK_BASE_ID`
+- 🔔 **失败了会推钉钉群**：workflow 末步 `if: failure()` → `scripts/notify-failure.js`，消息含北京时间、触发方式与**可点的运行日志链接**。
+  需额外配一个 Secret：**`DINGTALK_ROBOT_WEBHOOK`**（钉钉群自定义机器人的 Webhook；安全设置选「自定义关键词」，关键词填 `日报抓取`）。
+  **没配只是不发通知、不会让构建失败**（脚本会打 `::warning::` 把配置方法写进日志）。
+- 👁️ **页面上能一眼看出过期**：6 处「最近同步」都带新鲜度标签（`数据正常` / `数据偏旧` / `⚠ 数据已过期`）。
+  阈值依据排期推导：`17:00 → 次日 11:00 = 18h` 是正常的最长间隔，故 `< 20h` 正常、`≥ 26h` 标红。
+- ⚠️ **上面两个机制是互补的，不是二选一**：通知只覆盖「跑了但失败」；`schedule` 被 GitHub 在高负载时段
+  **跳过**时压根不会有 run，也就不会有通知 —— 那种情况只能靠页面标签被发现。
 
 > ⚠️ **钉钉 OpenAPI 拿不到「公式 / 查找引用 / 关联引用 / 自动编号」字段**（官方限制）。
 > 日报总览的 GMV / 订单 / UV 是公式字段，所以看板核心指标**改从「分店铺日报」聚合**
@@ -392,7 +400,21 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 ## 📝 变更日志
 
-> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.9.0`、`js/portal.js` `2.6.0`、`js/config/roles.js` `2.1.0`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.9.0`、`js/portal.js` `2.7.0`、`js/config/roles.js` `2.1.0`、`js/board.js` `2.2.3`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+
+- **v1.7.5**（2026-09-12）· 资源版本 `js/portal.js?v=2.6.0 → 2.7.0`、`js/board.js?v=2.2.2 → 2.2.3`（`js/api.js` 仍 `2.9.0`；**`css/portal.css` 特意没动**，见下）：
+  - 👁️ **数据过期现在会自己喊出来**。抓取跑在 GitHub 的机器上，一旦失败，页面上照旧写着上次的同步时间、**看着一切正常** —— 而没人会天天去 Actions 页面看那个红叉，于是"数据悄悄停更"可以持续好几天。现在 6 处「最近同步」都挂了新鲜度标签：`数据正常 · 3 小时前更新` / `数据偏旧 · 22 小时前更新` / `⚠ 数据已过期 · 已 2 天未更新`（绿 / 黄 / 红三档）。
+  - 🎯 **阈值不是拍脑袋定的**：两次抓取之间最长的自然间隔是 `17:00 → 次日 11:00 = 18 小时`，所以 **< 20h** 算正常（留 2h 给 GitHub `schedule` 本身的延迟），**≥ 26h** 说明漏了一整个轮次、必须标红。判据取 `fetchedAt`（UTC ISO）跟当前时间相减，**与浏览者所在时区无关**；`fetchedAtLocal` 只是给人看的展示字符串，不能拿去算时间差。
+  - 📍 **它散落在 6 处，只改一处等于没改**：`data.html` / `tables.html` / `board.js` / `settings.html` / `dashboard.html` / `admin.html` —— 用户看到过期数据的那一页，很可能正是漏掉的那页。所以回归里加了一条**防复发**断言：凡渲染 `fetchedAtLocal` 的地方，前后 3 行内必须有 `freshnessTag`，少一处就红。
+  - 🧩 **标签样式走内联，故意没写进 `css/portal.css`**：这样全站 15 个 HTML 的 css 版本号不用跟着跳。`?v=` 只该反映它标注的那个文件的真实变化，凭空多一个缓存维度就多一类「改了不起效」。
+  - 🔔 **抓取失败会推钉钉群**：新增 `scripts/notify-failure.js` + workflow 里的 `if: failure()` 步骤（末步）。消息含北京时间、触发方式、**可点的运行日志链接**，以及「去 Actions 点 Run workflow 补抓一次」的处置指引。
+    - ⚠️ **需要一个新 Secret：`DINGTALK_ROBOT_WEBHOOK`**。取法：钉钉群 → 群设置 → 智能群助手 → 添加机器人 → 自定义 → Webhook 地址；安全设置选「自定义关键词」，关键词填 **`日报抓取`**。**没配只是不发通知、不会让构建失败** —— 脚本会打 `::warning::` 并把配置方法写进日志。
+    - ⚠️ **它兜不住「压根没跑」**：GitHub 官方说明 `schedule` 在负载高峰可能被延迟甚至**跳过**，被跳过时不会有 run、也就不会有失败通知。那个场景正好由上面的过期标签兜住 —— **两者是互补关系，不是二选一**。
+    - ⚠️ 脚本退出码**恒为 0**：通知是附加动作，发不出去不该把 job 再弄红一次，否则真正的原因（抓取那一步的日志）会被淹没在第二个红叉里。
+  - 🐞 **修掉冒烟测试第三处「注释被当成引用」的假阳性**。v1.7.0 剥了 HTML 注释，但这次 `freshness` 的说明注释（JS 的 `/* */`）里提到了 `fetchedAtLocal`，又被误判成一个「没配标签的渲染点」。现在 ①②③⑥ 四处静态扫描统一走一个 `stripComments()`：HTML 注释与 JS 注释都剥，且**用空格顶替、保留换行**（⑥ 组要按行号报位置，行号必须稳定）。
+  - 🧪 冒烟 **25 → 43 项**（新增 ⑤ 数据新鲜度真跑三档 + ⑥ 渲染点接线自洽 + ⑦ 失败通知接线自洽）、内容 **51 → 58 项**（新增 ⑩ 组：替换 `daily.json` 的时间戳，断言 data / admin / board 三页分别渲染出 stale / ok / warn）。
+  - ✅ **反向验证做了两次**：① 临时摘掉 `data.html` 的 `freshnessTag` → ⑥ 组**真的失败**（精确报出 `pages/data.html:62`）；② 把两个阈值都改成 `-1`（等价于"永远显示过期"）→ ⑩ 组的 **ok 档与 warn 档真的双双失败**，证明"stale 与 ok 互为反例"这条设计确实拦得住坏实现。
+  - 验证：冒烟 **43/43** · 账号 **43/43** · 内容 **58/58** · 发布 **48/48**，四套全绿（共 **192 项**）。
 
 - **v1.7.4**（2026-09-12）· 资源版本不变（**只动 `scripts/` 与 `tools/`，`?v=` 不动**）：
   - 🐞 **修「最近同步」时间比北京时间早 8 小时**。`scripts/fetch-openapi.js` 里
