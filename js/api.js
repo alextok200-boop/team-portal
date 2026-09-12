@@ -473,9 +473,28 @@ var API = (function () {
       if (!isSecureContext()) return err(400, INSECURE_MSG);
       // 先确保共享名单（data/users.json）已加载，再比对——否则新同事第一次访问会漏账号
       return ensureRemote().then(function () {
+        // ⚠️ 名单没拉下来时先**强拉一次**再说。ensureRemote()（=ready()）在失败后会把
+        //    loaded 置为 true，所以不显式 refresh() 的话第二次根本不会再发请求。
+        //    首次访问 / 网络抖动 / Pages 抽风，多半重试一次就好了。
+        if (!usersStore.status().error) return null;
+        return usersStore.refresh();
+      }).then(function () {
         var users = loadUsers();
         var u = users.filter(function (x) { return x.username.toLowerCase() === username.toLowerCase(); })[0];
-        if (!u) return err(401, '账号或密码错误');
+        if (!u) {
+          /* 找不到账号有**两种**原因，必须分开说 ——
+             ① 真的没这个账号           → 401「账号或密码错误」，用户自己能处理（核对拼写/找管理员）
+             ② 共享名单压根没加载上来   → 这时还说「账号或密码错误」等于**甩锅给用户**：
+                同事会反复试密码、重设密码，永远排查不到点子上。
+                （v1.4.0「新增用户登录总显示账号密码错误」之后仍然踩过这个坑。）
+             判据用 usersStore.status().error —— 它只在 fetch data/*.json 失败时才有值。 */
+          var st = usersStore.status();
+          if (st.error) {
+            return err(503, '共享账号名单没加载成功（' + st.error + '），暂时无法确认这个账号是否存在。'
+              + '这不是密码错误 —— 多半是网络抖动，请刷新页面重试；若一直这样请联系管理员。');
+          }
+          return err(401, '账号或密码错误');
+        }
         if (u.active === false) return err(403, '账号已停用，请联系管理员');
         return sha256Hex(password).then(function (h) {
           if (!hashMatches(h, u.passwordHash)) {

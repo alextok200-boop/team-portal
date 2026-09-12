@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   regress-user-flow.js —— 账号全链路回归（40 项断言）
+   regress-user-flow.js —— 账号全链路回归（43 项断言）
 
    为什么会有这个脚本：
      v1.4.0 修过一个「新增用户登录总显示账号密码错误」的 bug ——
@@ -18,6 +18,8 @@
         且**对进不了管理后台的角色必须保留**（藏入口又不给替代路径 = 页面锁死）；
         后台入口与已有页签互链、hash 能直接落页签
      ⑧ 数据同步：抓取入口直达 GitHub Actions 工作流页（<a>），旧的死按钮已移除
+     ⑨ 共享名单（data/users.json）**拉取失败**时不得误报「账号或密码错误」——
+        必须明说是名单没加载上；登录页在提交前就要把该状态显示出来。
 
    前置：
      1. 在仓库父目录起静态服务（让 /team-portal/ 映射到仓库）
@@ -327,6 +329,41 @@ async function apiLogin(page, u, p) {
     check('旧的死按钮 btnRefresh 已移除',
           !sync.hasOldBtn, 'hasOldBtn=' + sync.hasOldBtn);
     await ctx8.close();
+
+    /* ⑨ 共享名单拉取失败时，**不能**报「账号或密码错误」
+       根因回顾：账号找不到有两种原因 —— ① 真没这个号；② data/users.json 没加载上来。
+       以前两种都报「账号或密码错误」，于是同事去反复试密码/要求重设密码，
+       真正的原因（一次网络抖动）没人看见。v1.4.0 那类事故就是这么来的。
+       这回把两者分开，并且提交前先把名单状态摆在登录页上。 */
+    console.log('\n⑨ 共享名单加载失败时不得误报「账号或密码错误」');
+    const ctx9 = await browser.createBrowserContext();
+    const p9 = await ctx9.newPage();
+    await p9.setRequestInterception(true);
+    p9.on('request', req => {
+      if (/\/data\/users\.json/.test(req.url())) return req.abort('failed');
+      req.continue();
+    });
+
+    await p9.goto(BASE + '/login.html', { waitUntil: 'networkidle0' });
+    await new Promise(x => setTimeout(x, 1600));
+    const warn = await p9.evaluate(() => {
+      const el = document.getElementById('rosterWarn');
+      return {
+        present: !!el,
+        shown: el ? el.className.indexOf('show') !== -1 : false,
+        text: el ? el.textContent.trim() : ''
+      };
+    });
+    check('登录页在提交前就提示「名单没加载成功」',
+          warn.shown && /名单/.test(warn.text), JSON.stringify(warn));
+
+    // 夹具账号 zhangsan 只存在于仓库名单 → 名单被掐掉时必然找不到
+    const r9 = await uiLogin(p9, SHARED_USER, SHARED_PASS);
+    check('名单失败时**不再**说「账号或密码错误」',
+          !r9.ok && !/账号或密码错误/.test(r9.msg || ''), JSON.stringify(r9));
+    check('而是明说是「名单没加载成功」并给出重试指引',
+          /名单/.test(r9.msg || '') && /(刷新|重试)/.test(r9.msg || ''), JSON.stringify(r9.msg));
+    await ctx9.close();
 
   } finally {
     restoreFixture();

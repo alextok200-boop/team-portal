@@ -49,6 +49,11 @@
 
       <div id="alert" class="alert alert-error"></div>
 
+      <!-- ⚠️ 共享名单（data/users.json）没加载上来时的提示。
+           不写这一条的话，名单拉取失败也会显示「账号或密码错误」——
+           同事会以为是自己密码记错，反复重试、甚至要求重设密码，永远排查不到点子上。 -->
+      <div id="rosterWarn" class="alert alert-error"></div>
+
       <form id="loginForm" autocomplete="off">
         <div class="field">
           <label for="username">账号</label>
@@ -116,7 +121,7 @@
 
 <script src="js/config/roles.js?v=2.1.0"></script>
 <script src="js/datastore.js?v=2.5.0"></script>
-<script src="js/api.js?v=2.8.0"></script>
+<script src="js/api.js?v=2.9.0"></script>
 <script src="js/auth.js?v=2.0.0"></script>
 <script src="js/landing.js?v=2.3.0"></script>
 <script>
@@ -148,6 +153,32 @@
     alertBox.className = 'alert alert-ok show';
   }
 
+  /* ── 一进页面就探一次「共享账号名单」────────────────────────
+     为什么要单独提示：名单（data/users.json）没加载上来时，登录会显示
+     「账号或密码错误」—— 同事会以为是自己密码记错，反复重试、甚至要求重设密码，
+     真正的原因（一次网络抖动）反而没人看见。这里把状态**摆在提交之前**。
+     判据是 API.remote().error，它只在 fetch data/*.json 失败时才有值。 */
+  var rosterWarn = document.getElementById('rosterWarn');
+  function renderRosterWarn() {
+    var st = API.remote();
+    if (!st.error) {
+      rosterWarn.className = 'alert alert-error';
+      rosterWarn.textContent = '';
+      return;
+    }
+    rosterWarn.className = 'alert alert-error show';
+    rosterWarn.innerHTML = '共享账号名单没加载成功（' + String(st.error).replace(/[<>&]/g, '') + '）。'
+      + '<strong>新同事的账号可能不在当前可用名单里，登录会提示「账号或密码错误」——那不是密码的问题。</strong> '
+      + '<a href="#" id="rosterRetry" style="color:var(--neon-blue);text-decoration:underline">重新加载名单</a>';
+    var a = document.getElementById('rosterRetry');
+    if (a) a.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      rosterWarn.textContent = '正在重新加载名单…';
+      API.refreshRemote().then(renderRosterWarn, renderRosterWarn);
+    });
+  }
+  API.remoteReady().then(renderRosterWarn);
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     alertBox.className = 'alert';
@@ -162,6 +193,7 @@
     btn.textContent = '验证中…';
 
     Auth.login(username, pwd).then(function (res) {
+      renderRosterWarn();          // 登录过程中可能刚把名单补拉回来，别留着过期的告警
       if (res.ok) {
         showOk('登录成功，正在进入…');
         var next = new URLSearchParams(window.location.search).get('next');
