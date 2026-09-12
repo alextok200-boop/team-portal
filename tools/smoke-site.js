@@ -13,6 +13,8 @@
      ③ 公共脚本就位：window.API / window.DataStore / window.Portal
      ④ 缓存击穿版本号全站一致（js/api.js?v=、js/datastore.js?v=、
         js/portal.js?v=、css/portal.css?v=）
+     ⑤ 抓取脚本 scripts/fetch-openapi.js 的「本地时间」在 TZ=UTC 下
+        仍按北京时间渲染（runner 是 ubuntu-latest = UTC，漏写 timeZone 会差 8 小时）
 
    前置：仓库父目录起 python -m http.server 8971
    运行：node tools/smoke-site.js
@@ -21,6 +23,7 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const REPO = path.resolve(__dirname, '..');
 const BASE = (process.env.PORTAL_BASE || 'http://127.0.0.1:8971/team-portal').replace(/\/$/, '');
@@ -185,6 +188,29 @@ function check(name, cond, extra) {
       if (miss.length) refBad.push(rel + ' 用了 ' + miss.join('/') + ' 但未引入对应脚本');
     }
     check('凡使用公共库必先引入（' + htmlFiles.length + ' 页）', refBad.length === 0, JSON.stringify(refBad));
+
+    /* ── ④ 抓取脚本的「本地时间」必须真的按北京时间渲染 ──
+       为什么要有这条：抓取跑在 GitHub Actions 的 ubuntu-latest 上，那台机器本地时区是 **UTC**。
+       `toLocaleString` 不带 timeZone 就按 runner 的本地时间渲染 ⇒ 页面上的「最近同步」
+       会比北京时间早 8 小时（排期 11:00/17:00 显示成 03:00/09:00，看着像抓取时间完全不对）。
+       这里**不是正则匹配**，而是把脚本里那行真代码抽出来、在 TZ=UTC 下跑一遍 ——
+       所以改了实现也能测到，不会因为"写法换了"就假绿。 */
+    console.log('\n④ 抓取脚本时区正确性（UTC 环境下必须是北京时间）');
+    const fetchSrc = fs.readFileSync(path.join(REPO, 'scripts', 'fetch-openapi.js'), 'utf8');
+    const line = (fetchSrc.split('\n').find(l => l.indexOf('fetchedAtLocal:') !== -1) || '').trim();
+    const m = line.match(/new Date\(\)\.toLocaleString\([^)]*\)/);
+    check('能定位到 fetchedAtLocal 的格式化代码', !!m, line.slice(0, 120));
+    if (m) {
+      const probe = 'const t=new Date("2026-09-11T13:11:57.000Z");'
+        + 'process.stdout.write(t.' + m[0].replace(/^new Date\(\)\./, '') + ');';
+      let out = '';
+      try {
+        out = childProcess.execFileSync(process.execPath, ['-e', probe],
+          { env: Object.assign({}, process.env, { TZ: 'UTC' }), encoding: 'utf8' }).trim();
+      } catch (e) { out = 'ERR ' + e.message; }
+      check('TZ=UTC 下 13:11:57Z 渲染为北京 21:11:57（而非 13:11:57）',
+            /^2026\/9\/11 21:11:57/.test(out), '实际输出: ' + JSON.stringify(out));
+    }
 
     await page.close();
     await ctx.close();

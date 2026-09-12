@@ -292,7 +292,12 @@ async function fetchTable(token, t) {
 
   const payload = {
     fetchedAt: new Date().toISOString(),
-    fetchedAtLocal: new Date().toLocaleString('zh-CN', { hour12: false }),
+    /* ⚠️ 必须显式指定 timeZone —— 抓取跑在 GitHub Actions 的 ubuntu-latest 上，
+       那台机器的本地时区是 **UTC**。不带 timeZone 的话 toLocaleString 会按 runner 的
+       本地时间渲染，于是页面上的「最近同步」永远**比北京时间早 8 小时**：
+       排期 11:00 / 17:00 会被显示成 03:00 / 09:00，看着就像"抓取时间完全不对"。
+       （2026-09-12 修：实测 13:11:57Z 被渲染成 2026/9/11 13:11:57，正确应为 21:11:57。） */
+    fetchedAtLocal: new Date().toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }),
     source: SOURCE_NAME,
     sourceUrl: 'https://alidocs.dingtalk.com/i/nodes/' + BASE_ID,
     baseId: BASE_ID,
