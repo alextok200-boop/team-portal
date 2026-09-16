@@ -18,6 +18,11 @@
      - 字段列表:     GET  /v1.0/notable/bases/{baseId}/sheets/{sheetId}/fields?operatorId=
      - 记录列表:     POST /v1.0/notable/bases/{baseId}/sheets/{sheetId}/records/list?operatorId=
 
+   版本：v1.3.0（2026-09-12）
+     · 新增抓取「11.店铺负责人」(jLVFycP)，并在抓完后把「负责人」派生到 perf 行上
+       —— 详见 deriveOwners() 的注释：perf 源表没有「负责人」列，只有一个
+       filterUp 字段「负责人_自动匹配」，而 OpenAPI 会把 filterUp/formula 整类
+       过滤掉，导致快照里的 perf 行完全没有负责人信息、看板 17 行全渲染成「—」。
    版本：v1.2.0（2026-09-10）
      · 行数上限 200 → 4000（原上限导致 domestic/crossborder/ads/content 四表被静默截断）
      · 新增 truncated / filledRows / error 元数据，截断与空表不再无声
@@ -72,6 +77,9 @@ const TABLES = [
   { key: 'traffic',     id: '56p4no5umzcmokaaefh63', name: '5.流量竞品日报',       group: '流量' },
   { key: 'supply',      id: 'v5wnul31vkbcdwulr9v0b', name: '6.供应链客服日报',     group: '供应链' },
   { key: 'team',        id: 'hcxjxotvzquyybjr9kvvi', name: '7.团队战力评估',       group: '团队' },
+  /* 「11.店铺负责人」不是日报表，是**对照表**：平台 → 负责人 的名单（56 条、22 个平台）。
+     抓它是为了让 deriveOwners() 能把「负责人」补到 perf 行上 —— 见下方函数注释。 */
+  { key: 'owners',      id: 'jLVFycP',               name: '11.店铺负责人',        group: '负责人' },
   { key: 'perf',        id: 'mVmsNph',               name: '15.负责人业绩日报',    group: '业绩' }
 ];
 
@@ -235,8 +243,81 @@ async function fetchTable(token, t) {
   };
 }
 
+/* ── 派生列：把「负责人」补到 perf 行上 ─────────────────────
+   背景（为什么必须派生，而不是直接读源表那一列）：
+     perf 源表「15.负责人业绩日报」里**根本没有「负责人」这个普通列**，
+     只有一个 filterUp（查找引用）字段，名为「负责人_自动匹配」(fieldId 5PSjsAQ)，
+     其自带配置是：
+       aggregator : VALUES
+       filters    : [ 本表「平台」(AbSdZT5) equal 目标表「平台」(8NfIsm3) ]
+       targetSheet: jLVFycP（= 11.店铺负责人）
+       valuesField: RtMp9jb（= 负责人）
+     即「按平台相等，从对照表聚合所有匹配行的负责人」。
+
+     而钉钉 OpenAPI 的 /fields 与 /records 都会把 filterUp / formula 整类字段
+     **静默过滤掉**，于是快照里的 perf 行一个负责人字段都没有：
+       · perf 源表 15 字段 → 快照 14 字段（缺的正是「负责人_自动匹配」）
+       · overview 源表 55 字段 → 快照 7 字段（缺的 48 个全是 filterUp / formula）
+       · 其余 7 张表一个字段都不缺 —— 对照即证明，不是抓取偶发失败
+     结果：看板第 9 张表 17 行「负责人」全渲染成「—」，钻取也就带不出关键词。
+
+   做法：不啃那个不可靠的引用字段（连列名都拿不到，得硬编 fieldId，脆弱且不可见），
+   而是**把源表自己的聚合规则照搬一遍** —— 多抓一张普通表「11.店铺负责人」，
+   再按「平台」相等把负责人拼到 perf 行上。
+
+   等价性（2026-09-12 实测，17 行全量比对）：
+     按本函数规则推导出的负责人 与 源表 filterUp「负责人_自动匹配」的真实取值
+     **逐行多重集完全一致：16/16 相等，0 条不等**；剩下 1 行是 eBay，两边都为空
+     （eBay 在对照表里没有记录，源表的引用字段同样返回 null —— 表现一致）。
+     ⚠️ 顺序不保证一致：源表的返回顺序不是对照表的行序（如 拼多多 源表
+        ['崔羽','杨秋','崔羽'] / 对照表行序 ['崔羽','崔羽','杨秋']），
+        所以只做**多重集**比对，不比对序列 —— 展示时本来也要去重。
+     ⚠️ 同一平台的负责人是**数组**（一行可多人、且同平台多店会重复），
+        因此这里去重后按首次出现顺序用 ' / ' 拼接。
+
+   ⚠️ 若哪天源表改了这条引用规则（换匹配列、改目标表/取值列、加过滤条件），
+      本函数必须跟着改 —— 两条口径的**唯一**同步点就在这里。 */
+function deriveOwners(results) {
+  const owners = results.filter((t) => t.key === 'owners')[0];
+  const perf = results.filter((t) => t.key === 'perf')[0];
+  /* 任一表缺失 / 抓取失败 → 不派生。宁可不给这一列（前端照旧显示「—」并提示），
+     也不要拿半份对照表拼出一个看起来对、其实是错的负责人。 */
+  if (!owners || !perf || owners.error || perf.error) return null;
+
+  const byPlatform = {};                                  // 平台 → [负责人…]（去重、保序）
+  owners.rows.forEach(function (r) {
+    const pf = r['平台'];
+    const ow = r['负责人'];
+    /* 平台或负责人为空的行直接跳过：不为「有平台但没负责人」（如对照表里的 eBay）
+       建一个空数组键 —— 那会让 byPlatform 这个「平台 → 负责人」映射里混进语义
+       上没有意义的空项，也让发布出去的溯源信息更难读。 */
+    if (!pf || !ow) return;
+    if (!byPlatform[pf]) byPlatform[pf] = [];
+    if (byPlatform[pf].indexOf(ow) === -1) byPlatform[pf].push(ow);
+  });
+
+  let filled = 0;
+  perf.rows.forEach(function (r) {
+    const list = byPlatform[r['平台']] || [];
+    if (!list.length) return;
+    r['负责人'] = list.join(' / ');
+    filled++;
+  });
+  if (perf.columns.indexOf('负责人') === -1) perf.columns.push('负责人');
+
+  return {
+    column: '负责人',
+    from: owners.name + '（' + owners.tableId + '）',
+    rule: '本表「平台」相等 → 聚合对照表「负责人」，去重后以 " / " 拼接',
+    replaces: '源表 filterUp 字段「负责人_自动匹配」(5PSjsAQ)；OpenAPI 不返回该字段故在此复现其规则',
+    filled: filled,
+    total: perf.rows.length,
+    byPlatform: byPlatform
+  };
+}
+
 /* ── 主流程 ─────────────────────────────────────────────── */
-(async function main() {
+async function main() {
   if (!APP_KEY || !APP_SECRET) {
     console.error('缺少凭证：请设置 DINGTALK_APP_KEY / DINGTALK_APP_SECRET');
     process.exit(2);
@@ -290,6 +371,20 @@ async function fetchTable(token, t) {
     process.exit(2);
   }
 
+  /* 派生列（见 deriveOwners 注释）：把「负责人」补到 perf 行上。
+     放在所有表都抓完之后 —— 它同时依赖 perf 与 owners 两张表。 */
+  const ownerJoin = deriveOwners(results);
+  if (ownerJoin) {
+    console.log('\n派生列：perf「负责人」← ' + ownerJoin.from +
+      ' 按平台聚合，已填充 ' + ownerJoin.filled + '/' + ownerJoin.total + ' 行' +
+      (ownerJoin.filled < ownerJoin.total
+        ? '（未填充的 ' + (ownerJoin.total - ownerJoin.filled) + ' 行：其平台在对照表里没有负责人记录，源表同位置也是空）'
+        : ''));
+  } else {
+    console.warn('\n⚠ 派生列跳过：perf 或 owners 表缺失/抓取失败 —— 快照里将没有「负责人」列' +
+      '（看板会显式提示，不会静默显示成「—」）');
+  }
+
   const payload = {
     fetchedAt: new Date().toISOString(),
     /* ⚠️ 必须显式指定 timeZone —— 抓取跑在 GitHub Actions 的 ubuntu-latest 上，
@@ -315,6 +410,10 @@ async function fetchTable(token, t) {
     emptyTables: emptyTables,
     complete: truncatedTables.length === 0 && failed.length === 0,
     failedTables: failed,
+    /* 派生列溯源：列名 / 来源表 / 规则 / 替代的源表字段 / 填充行数。
+       写进快照是为了**可审计** —— 谁都能从发布出去的数据里看出这一列怎么来的。
+       为 null 表示本次没派生成功（前端据此显式提示，而不是显示一片「—」）。 */
+    ownerJoin: ownerJoin,
     tables: results
   };
 
@@ -327,7 +426,16 @@ async function fetchTable(token, t) {
     '（可调大 DINGTALK_RAW_CAP / 表级 rawCap）');
   if (failed.length) console.log('✗ 失败的表：' + failed.map(function (f) { return f.name; }).join(', '));
   console.log('已写入：' + OUT_FILE + '\n');
-})().catch(function (e) {
-  console.error('\n[异常] ' + e.message + '\n');
-  process.exit(1);
-});
+}
+
+/* 只有直接运行（node scripts/fetch-openapi.js）才执行抓取；
+   require 进来时只导出纯函数，供 tools/regress-owner-join.js 单测派生逻辑 —— 
+   否则「一 require 就抓一次线上表」会让单测变成不确定的集成测试。 */
+if (require.main === module) {
+  main().catch(function (e) {
+    console.error('\n[异常] ' + e.message + '\n');
+    process.exit(1);
+  });
+}
+
+module.exports = { TABLES: TABLES, deriveOwners: deriveOwners };

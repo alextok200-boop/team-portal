@@ -8,6 +8,9 @@
      · 核心指标 = domestic(国内) + crossborder(跨境) 两张分店铺日报聚合
        （日报总览的 GMV/订单/UV 是钉钉公式字段，OpenAPI 取不到）
      · 负责人业绩 = perf 表，属「负责人认领口径」，与分店铺口径不可直接相加
+     · perf 的「负责人」列**不在源表里**（源表那列是 filterUp 查找引用字段，
+       钉钉接口整类不返回），由 scripts/fetch-openapi.js 从「11.店铺负责人」
+       按平台派生。所以它可能缺席 —— 缺席时本页会显式提示，不静默显示成「—」。
    ============================================================ */
 (function () {
   'use strict';
@@ -45,6 +48,18 @@
     if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿';
     if (n >= 1e4) return (n / 1e4).toFixed(1) + '万';
     return String(Math.round(n));
+  }
+
+  /* 图④ 的 y 轴标签：以「负责人」领衔（那块的标题就是「各负责人 GMV 与净利润」），
+     负责人缺席时退回原先的「平台 · 区域」，旧快照也不会出现空标签。
+     ⚠️ 手动截断，不用 axisLabel.overflow —— 免得依赖 echarts 版本。
+     ⚠️ perf 表一行 = 一个平台（同平台可能有两行，如 淘宝/Amazon），
+        所以 `负责人 · 平台` 重复是数据本身如此，不是标签拼错。 */
+  function perfAxisLabel(r) {
+    var pf = r['平台'] || '—';
+    var who = r['负责人'];
+    var s = who ? (who + ' · ' + pf) : (pf + (r['区域'] ? ' · ' + r['区域'] : ''));
+    return s.length > 20 ? s.slice(0, 20) + '…' : s;
   }
 
   /* ── 钻取链接（唯一入口，别在调用点各写各的）───────────────
@@ -296,11 +311,23 @@
         .sort(function (a, b) { return num(b['GMV']) - num(a['GMV']); });
       var perfGmv = perfRows.reduce(function (s, r) { return s + num(r['GMV']); }, 0);
       var perfProfit = perfRows.reduce(function (s, r) { return s + num(r['净利润']); }, 0);
+
+      /* perf 行的「负责人」是抓取侧从「11.店铺负责人」按平台派生出来的
+         （见 scripts/fetch-openapi.js 的 deriveOwners —— 源表那一列是 filterUp
+         查找引用字段，钉钉接口整类不返回）。所以它**可能缺席**：旧快照、或
+         抓取时对照表失败。缺席时这里必须说明白，不能让用户对着一列「—」猜。 */
+      var ownerColMissing = perfRows.length > 0 && !perfRows.some(function (r) { return r['负责人']; });
+      var ownerMissingHint = ownerColMissing
+        ? '<span class="muted">⚠ 本快照未含「负责人」列：该列在源表里是查找引用字段，钉钉接口不返回，' +
+          '由抓取时从「11.店铺负责人」按平台派生 —— 等下一次抓取跑完即可恢复。</span>'
+        : '';
+
       document.getElementById('perfSummary').innerHTML = perfRows.length
         ? '共 <b>' + perfRows.length + '</b> 条负责人业绩 · GMV 合计 <b>' + fmtMoney(perfGmv) +
           '</b> · 净利润合计 <b>' + fmtMoney(perfProfit) + '</b> · 综合利润率 <b>' +
           (perfGmv ? (perfProfit / perfGmv * 100).toFixed(1) : '—') + '%</b>' +
-          '<span class="muted">（负责人认领口径，与上方分店铺口径不可直接相加）</span>'
+          '<span class="muted">（负责人认领口径，与上方分店铺口径不可直接相加）</span>' +
+          ownerMissingHint
         : '暂无负责人业绩数据';
 
       var cPerf = mountChart('chartPerf');
@@ -309,12 +336,19 @@
         cPerf.setOption({
           color: [C.pink, C.green],
           tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' },
-            valueFormatter: function (v) { return fmtMoney(v); } }, tooltipBase()),
+            formatter: function (ps) {
+              var r = p10[ps[0].dataIndex] || {};
+              var s = '<b>' + esc(r['平台'] || '—') + (r['区域'] ? ' · ' + esc(r['区域']) : '') + '</b>';
+              s += '<br/><span style="color:' + C.dim + '">负责人：' +
+                (r['负责人'] ? esc(r['负责人']) : '未配置') + '</span>';
+              ps.forEach(function (p) { s += '<br/>' + p.marker + p.seriesName + ' ' + fmtMoney(p.value); });
+              return s;
+            } }, tooltipBase()),
           legend: { data: ['GMV', '净利润'], textStyle: { color: C.dim }, top: 4, right: 8, icon: 'roundRect', itemWidth: 12, itemHeight: 6 },
           grid: { left: 8, right: 14, top: 42, bottom: 6, containLabel: true },
           xAxis: Object.assign({ type: 'value', axisLabel: { color: C.dim, fontSize: 11, formatter: compact } }, axisBase()),
           yAxis: Object.assign({ type: 'category',
-            data: p10.map(function (r) { return (r['平台'] || '—') + ' · ' + (r['区域'] || ''); }),
+            data: p10.map(perfAxisLabel),
             axisLabel: { color: C.dim, fontSize: 11 } }, axisBase(), { splitLine: { show: false } }),
           series: [
             { name: 'GMV', type: 'bar', barWidth: '30%', itemStyle: { borderRadius: [0, 4, 4, 0] },
