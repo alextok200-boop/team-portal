@@ -24,6 +24,10 @@
      ⑦ 抓取失败通知接线自洽：workflow 有 if: failure() 步骤，且**真跑一次**
         `scripts/notify-failure.js --dry-run`，parse 它吐出的 JSON
         验关键词与运行日志链接（只做源码正则匹配的话，改坏了实现也照样绿）
+     ⑧ 页面间跳转可落地：因每页有 <base href="/team-portal/">，相对 URL 是按
+        **站点根**解析的 —— 在 pages/ 页里裸写 `tables.html` 会去请求根下的
+        tables.html 而真实文件在 pages/ 下 ⇒ 点卡片直接 404。断言相对链接必须
+        带 pages/ 前缀（根级 index/login 除外），且目标文件真实存在。
 
    前置：仓库父目录起 python -m http.server 8971
    运行：node tools/smoke-site.js
@@ -348,6 +352,56 @@ function stripComments(src, isHtml) {
         check('正文含可点的运行日志链接', /actions\/runs\/42/.test(text), text.slice(0, 200));
       }
     }
+
+    /* ── ⑧ 页面间跳转必须能落到真实文件 ──
+       为什么要有这条：每页 <head> 都写了 <base href="/team-portal/">，
+       相对 URL 一律相对**站点根**解析，而不是相对当前目录。
+       于是在 pages/ 下的页面里裸写 `tables.html`，浏览器会去请求
+       /team-portal/tables.html —— 真实文件却在 /team-portal/pages/tables.html ⇒ 404。
+       最坑的是静态看代码"像是对的"：文件名没错、目标页也在、路径也没打错字。
+       本仓踩过：js/board.js 的看板钻取链接（核心指标卡 ×6 + 两张表）三处都少一层 pages/。
+       判定基准 = 站点根：相对链接要么写成 pages/xxx.html，要么是根级页面（index/login）。
+       ⚠️ 两个坑：① 必须先剥注释（landing.js 注释里就写着 index.html / login.html，不剥即假阳性）；
+                  ② 只认「链接位置」上的相对路径，别把 `c.html_url` 这类字段名当成链接。
+       反过来，写全 `pages/xxx.html` 但目标页不存在（打错字 / 改名没同步）也一并拦下。 */
+    console.log('\n⑧ 页面间跳转链接可落地（静态读盘）');
+    const ROOT_LEVEL_PAGES = ['index.html', 'login.html'];
+    const walkJs = [];
+    (function walk(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        if (e.name === 'vendor' || e.name === 'node_modules') continue;
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.name.endsWith('.js')) walkJs.push(p);
+      }
+    })(path.join(REPO, 'js'));
+
+    const scanTargets = walkJs.map(f => ({ f: f, isHtml: false }))
+      .concat(allHtmlFiles().map(f => ({ f: f, isHtml: true })));
+
+    /* 只匹配链接位置上、以引号包起来的相对 .html 路径；
+       绝对 URL（https://…）和字段名（c.html_url）都不会命中。 */
+    const LINK_RE = /(?:href|data-href)\s*=\s*(["'])((?:\.\.\/)*[A-Za-z0-9_.-]+\.html(?:\?[^"']*)?)\1/g;
+    const badLinks = [];
+    const missingTargets = [];
+    for (const t of scanTargets) {
+      const rel = path.relative(REPO, t.f).split(path.sep).join('/');
+      const src = stripComments(fs.readFileSync(t.f, 'utf8'), t.isHtml);
+      let m;
+      while ((m = LINK_RE.exec(src)) !== null) {
+        const url = m[2];
+        const file = url.split('?')[0];
+        if (ROOT_LEVEL_PAGES.indexOf(file) !== -1) continue;   // 根级页面，合法
+        if (file.indexOf('pages/') !== 0) {
+          badLinks.push(rel + ' → ' + url + '  （相对站点根应为 pages/' + file + '）');
+          continue;
+        }
+        if (!fs.existsSync(path.join(REPO, file))) missingTargets.push(rel + ' → ' + url);
+      }
+    }
+    check('页面内跳转都按「相对站点根」写对（扫 ' + scanTargets.length + ' 个文件）',
+          badLinks.length === 0, JSON.stringify(badLinks));
+    check('引用的页面文件都真实存在', missingTargets.length === 0, JSON.stringify(missingTargets));
 
     await page.close();
     await ctx.close();

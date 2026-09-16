@@ -47,6 +47,19 @@
     return String(Math.round(n));
   }
 
+  /* ── 钻取链接（唯一入口，别在调用点各写各的）───────────────
+     ⚠️ 必须用 Site.url() 拼成「站内绝对路径」。
+     本页 <base href="/team-portal/">，若裸写相对路径 `tables.html`，
+     浏览器会解析成 `/team-portal/tables.html` —— 少一层 `pages/`，必然 404。
+     全站其它跳转（auth.js / portal.js / landing.js）都走 Site.url()，这里是原先漏掉的三处。
+     本函数返回的是**未做 HTML 转义的普通 URL**（含裸 `&`），
+     放进 href / data-href 属性时浏览器对 `&q=` 这种非实体写法按字面解析，与改前行为一致。 */
+  function tableUrl(key, q) {
+    var u = 'pages/tables.html?table=' + encodeURIComponent(key);
+    if (q) u += '&q=' + encodeURIComponent(q);
+    return (window.Site && typeof Site.url === 'function') ? Site.url(u) : u;
+  }
+
   var charts = [];
   function mountChart(id) {
     var el = document.getElementById(id);
@@ -160,7 +173,7 @@
         { label: 'UV', value: fmtInt(agg.domUv + agg.crossUv), sub: '已录入明细合计' }
       ];
       document.getElementById('coreStats').innerHTML = cards.map(function (c) {
-        return '<a class="stat stat-link" href="tables.html?table=domestic" title="点击查看分店铺明细">' +
+        return '<a class="stat stat-link" href="' + tableUrl('domestic') + '" title="点击查看分店铺明细">' +
           '<div class="label">' + c.label + '</div>' +
           '<div class="value">' + c.value + '</div>' +
           '<div class="stat-sub">' + c.sub + '</div></a>';
@@ -316,7 +329,7 @@
       var storeTb = document.getElementById('storeRows');
       storeTb.innerHTML = storeList.length
         ? storeList.slice(0, 20).map(function (s, i) {
-            return '<tr class="row-click" data-href="tables.html?table=' + s.tableKey + '&q=' + encodeURIComponent(s.name) + '" title="点击查看该店铺明细">' +
+            return '<tr class="row-click" data-href="' + tableUrl(s.tableKey, s.name) + '" title="点击查看该店铺明细">' +
               '<td class="mono muted">' + (i + 1) + '</td>' +
               '<td><strong>' + esc(s.name) + '</strong></td>' +
               '<td><span class="tag tag-blue">' + esc(s.platform) + '</span></td>' +
@@ -331,7 +344,7 @@
       var perfTb = document.getElementById('perfRows');
       perfTb.innerHTML = perfRows.length
         ? perfRows.map(function (r) {
-            return '<tr class="row-click" data-href="tables.html?table=perf&q=' + encodeURIComponent(r['负责人'] || '') + '" title="点击查看该负责人业绩明细">' +
+            return '<tr class="row-click" data-href="' + tableUrl('perf', r['负责人'] || '') + '" title="点击查看该负责人业绩明细">' +
               '<td><strong>' + esc(r['负责人'] || '—') + '</strong></td>' +
               '<td><span class="tag tag-green">' + esc(r['平台'] || '—') + '</span></td>' +
               '<td class="num">' + fmtMoney(r['GMV']) + '</td>' +
