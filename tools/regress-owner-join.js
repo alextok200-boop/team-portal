@@ -218,6 +218,14 @@ function buildFixture(D) {
   });
 
   const out = JSON.parse(JSON.stringify(D));
+  /* ⚠️ 必须先清掉原快照里 perf 行上已有的「负责人」，再按夹具设计重建。
+     否则真实快照一旦带上该列（v1.7.7 抓过之后就是这样），被故意留空的
+     「missing」平台仍会顶着真实值，夹具的预期全部落空 —— 2026-09-16 真栽过：
+     4 条断言红，红的是夹具的假设，不是产品。 */
+  const outPerf = out.tables.filter(function (t) { return t.key === 'perf'; })[0];
+  outPerf.rows.forEach(function (r) { delete r['负责人']; });
+  outPerf.columns = (outPerf.columns || []).filter(function (c) { return c !== '负责人'; });
+
   const tables = out.tables.filter(function (t) { return t.key !== 'owners'; });
   tables.splice(tables.length - 1, 0, {
     key: 'owners', name: '11.店铺负责人', group: '负责人', tableId: 'jLVFycP',
@@ -232,14 +240,23 @@ function buildFixture(D) {
     multi: multi,
     missing: missing,
     expectMulti: '多负责人甲 / 多负责人乙',
-    missingLabel: missing + (missRow['区域'] ? ' · ' + missRow['区域'] : '')
+    missingLabel: missing + (missRow['区域'] ? ' · ' + missRow['区域'] : ''),
+    /* missing 平台在 perf 里有几行，就会有几行显示「—」 */
+    expectDash: perf.rows.filter(function (r) { return r['平台'] === missing; }).length
   };
   return out;
 }
 
 function fixtureWithoutOwners(D) {
+  /* 模拟「抓取侧还没派生过」的快照：owners 表、ownerJoin、perf 的「负责人」列**三样都没有**。
+     只删 owners 而留着负责人列，是模拟不出来的（页面照旧有名字，提示自然不该出）。 */
   const out = JSON.parse(JSON.stringify(D));
   out.tables = out.tables.filter(function (t) { return t.key !== 'owners'; });
+  const p = out.tables.filter(function (t) { return t.key === 'perf'; })[0];
+  if (p) {
+    p.rows.forEach(function (r) { delete r['负责人']; });
+    p.columns = (p.columns || []).filter(function (c) { return c !== '负责人'; });
+  }
   out.ownerJoin = null;
   return out;
 }
@@ -308,8 +325,9 @@ async function browserTests(D) {
     const names = cells.map(function (c) { return c.name; });
     const dashCount = names.filter(function (n) { return n === '—'; }).length;
 
-    check('负责人列不再是满屏「—」（' + cells.length + ' 行中仅 ' + dashCount + ' 行为「—」）',
-          cells.length > 0 && dashCount < cells.length, JSON.stringify(names.slice(0, 6)));
+    check('负责人列不再是满屏「—」（' + cells.length + ' 行中 ' + dashCount + ' 行为「—」，夹具预期 ' + fx._fixture.expectDash + '）',
+          cells.length > 0 && dashCount === fx._fixture.expectDash && dashCount < cells.length,
+          JSON.stringify(names.slice(0, 6)));
     check('多负责人平台拼成「多负责人甲 / 多负责人乙」',
           names.indexOf(fx._fixture.expectMulti) !== -1, JSON.stringify(names.slice(0, 8)));
     check('对照表里没有的平台（' + fx._fixture.missing + '）仍优雅显示「—」，不报错、不写假值',
