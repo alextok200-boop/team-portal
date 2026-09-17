@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-09-17T08:28:29.448Z",
-  "fetchedAtLocal": "2026/9/17 16:28:29",
+  "fetchedAt": "2026-09-17T14:02:47.132Z",
+  "fetchedAtLocal": "2026/9/17 22:02:47",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 1985,
+  "totalRows": 1988,
   "rawRowsTotal": 24302,
-  "droppedEmptyRowsTotal": 22317,
+  "droppedEmptyRowsTotal": 22314,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -14545,9 +14545,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1034,
+      "rowCount": 1037,
       "rawRows": 4437,
-      "droppedEmptyRows": 3403,
+      "droppedEmptyRows": 3400,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -20645,6 +20645,22 @@
           "店铺名": "Shopee-康竺-billiard zone"
         },
         {
+          "推广费": "268.75",
+          "UV": "354",
+          "加购数": "5",
+          "客单价": "60.82",
+          "全店GMV": "60.82",
+          "订单量": "1",
+          "星期": "三",
+          "ROI": "0.23",
+          "促销节点": "99大促",
+          "平台": "Shopee",
+          "日期": "09/16",
+          "转化率": "0.002",
+          "加购率": "0.0147",
+          "店铺名": "Shopee-康竺-billiard zone"
+        },
+        {
           "推广费": "184.37",
           "UV": "616",
           "加购数": "52",
@@ -21315,6 +21331,22 @@
           "日期": "08/30",
           "转化率": "0.013300000000000001",
           "店铺名": "LAZADA-Konllen Billiards Shop"
+        },
+        {
+          "推广费": "15.24",
+          "UV": "484",
+          "加购数": "20",
+          "客单价": "52.32",
+          "全店GMV": "350.94",
+          "订单量": "1",
+          "星期": "四",
+          "ROI": "0",
+          "促销节点": "99大促",
+          "平台": "速卖通",
+          "日期": "09/17",
+          "转化率": "0.0041",
+          "加购率": "0.0413",
+          "店铺名": "速卖通-速卖通K （Konllen Store）"
         },
         {
           "推广费": "33.01",
@@ -29606,6 +29638,22 @@
           "日期": "09/16",
           "转化率": "0.0089",
           "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
+        },
+        {
+          "推广费": "201.69",
+          "UV": "981",
+          "加购数": "26",
+          "客单价": "201.52",
+          "全店GMV": "1351.71",
+          "订单量": "1",
+          "星期": "四",
+          "ROI": "11.6",
+          "促销节点": "99大促",
+          "平台": "速卖通",
+          "日期": "09/17",
+          "转化率": "0.0018",
+          "加购率": "0.0265",
+          "店铺名": "速卖通-速卖通C （ZOKUE Billiards Store）"
         },
         {
           "推广费": "24.92",
