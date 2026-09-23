@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-09-22T13:51:38.682Z",
-  "fetchedAtLocal": "2026/9/22 21:51:38",
+  "fetchedAt": "2026-09-23T08:21:28.369Z",
+  "fetchedAtLocal": "2026/9/23 16:21:28",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,18 +11,14 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2084,
-  "rawRowsTotal": 24302,
-  "droppedEmptyRowsTotal": 22218,
+  "totalRows": 2089,
+  "rawRowsTotal": 16364,
+  "droppedEmptyRowsTotal": 14275,
   "truncatedTables": [],
   "emptyTables": [
     {
       "key": "overview",
       "name": "1.日报总览"
-    },
-    {
-      "key": "ads",
-      "name": "3.投放日报"
     },
     {
       "key": "content",
@@ -41,8 +37,14 @@
       "name": "7.团队战力评估"
     }
   ],
-  "complete": true,
-  "failedTables": [],
+  "complete": false,
+  "failedTables": [
+    {
+      "key": "ads",
+      "name": "3.投放日报",
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A0CD59-AB41-7F93-AC59-76F6ECFF89E2\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-09-23 16:20:00 到 2026-09-23 16:20:00 请求总次数超过 100 次, 限制将在 2026-09-23 16:20:01 结束.\"}"
+    }
+  ],
   "ownerJoin": {
     "column": "负责人",
     "from": "11.店铺负责人（jLVFycP）",
@@ -158,9 +160,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 16,
-      "rowCount": 922,
+      "rowCount": 926,
       "rawRows": 3406,
-      "droppedEmptyRows": 2484,
+      "droppedEmptyRows": 2480,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -4115,6 +4117,23 @@
           "店铺名": "抖店-康伦-梦之豪台球个体店"
         },
         {
+          "推广费": "104.38",
+          "UV": "140",
+          "加购数": "6",
+          "客单价": "1136",
+          "全店GMV": "2272",
+          "订单量": "2",
+          "星期": "二",
+          "ROI": "21.77",
+          "退货率": "0.6566",
+          "促销节点": "99大促",
+          "平台": "拼多多",
+          "日期": "09/22",
+          "转化率": "0.0071",
+          "加购率": "0.0428",
+          "店铺名": "拼多多-AXD"
+        },
+        {
           "推广费": "123.93",
           "UV": "337",
           "加购数": "15",
@@ -5148,6 +5167,19 @@
           "转化率": "0",
           "加购率": "0.125",
           "店铺名": "京东-CRICAL欧立龙专卖店"
+        },
+        {
+          "推广费": "0",
+          "UV": "52",
+          "促销节点": "99大促",
+          "客单价": "0",
+          "平台": "淘宝",
+          "日期": "09/22",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "二",
+          "ROI": "0",
+          "店铺名": "淘宝-球杆大圣聚杆堂"
         },
         {
           "推广费": "39.97",
@@ -9003,6 +9035,23 @@
           "店铺名": "1688-欧力龙"
         },
         {
+          "推广费": "130.89",
+          "UV": "285",
+          "加购数": "0",
+          "客单价": "90.62",
+          "全店GMV": "989.7",
+          "订单量": "11",
+          "星期": "二",
+          "ROI": "5.73",
+          "退货率": "0.098",
+          "促销节点": "99大促",
+          "平台": "抖店",
+          "日期": "09/22",
+          "转化率": "0.0351",
+          "加购率": "0",
+          "店铺名": "抖店-皇族台球个体店"
+        },
+        {
           "推广费": "26.54",
           "UV": "355",
           "促销节点": "818大促",
@@ -11535,6 +11584,23 @@
           "星期": "五",
           "退货率": "0",
           "店铺名": "抖店-康伦-梦之豪台球个体店"
+        },
+        {
+          "推广费": "0",
+          "UV": "101",
+          "加购数": "3",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "二",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "99大促",
+          "平台": "淘宝",
+          "日期": "09/22",
+          "转化率": "0",
+          "加购率": "0.0297",
+          "店铺名": "淘宝-九跃台球用品店"
         },
         {
           "推广费": "420.31",
@@ -15277,9 +15343,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1089,
+      "rowCount": 1090,
       "rawRows": 4437,
-      "droppedEmptyRows": 3348,
+      "droppedEmptyRows": 3347,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -20055,6 +20121,23 @@
           "转化率": "0.0095",
           "加购率": "0.07655502",
           "店铺名": "TEMU-KONLLEN shipstore 半托管"
+        },
+        {
+          "推广费": "74.97",
+          "UV": "1066",
+          "加购数": "58",
+          "客单价": "212.5",
+          "全店GMV": "2125.09",
+          "订单量": "10",
+          "星期": "二",
+          "ROI": "28.35",
+          "退货率": "0",
+          "促销节点": "99大促",
+          "平台": "TEMU",
+          "日期": "09/22",
+          "转化率": "0.0093",
+          "加购率": "0.0544",
+          "店铺名": "TEMU-AXD sports 全托管"
         },
         {
           "推广费": "33.66",
@@ -32255,26 +32338,14 @@
       "name": "3.投放日报",
       "group": "投放",
       "tableId": "p8b405p6gt2jgntr1ul26",
-      "fieldCount": 11,
+      "fieldCount": 0,
       "rowCount": 0,
-      "rawRows": 7938,
-      "droppedEmptyRows": 7938,
+      "rawRows": 0,
+      "droppedEmptyRows": 0,
       "truncated": false,
-      "pagesFetched": 80,
-      "columns": [
-        "备注",
-        "星期",
-        "促销节点",
-        "日期",
-        "展示",
-        "花费",
-        "成交",
-        "ROI",
-        "CTR",
-        "点击",
-        "店铺"
-      ],
-      "rows": []
+      "columns": [],
+      "rows": [],
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A0CD59-AB41-7F93-AC59-76F6ECFF89E2\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-09-23 16:20:00 到 2026-09-23 16:20:00 请求总次数超过 100 次, 限制将在 2026-09-23 16:20:01 结束.\"}"
     },
     {
       "key": "content",
