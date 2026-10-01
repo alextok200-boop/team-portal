@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-01T09:51:26.946Z",
-  "fetchedAtLocal": "2026/10/1 17:51:26",
+  "fetchedAt": "2026-10-01T15:55:36.385Z",
+  "fetchedAtLocal": "2026/10/1 23:55:36",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -12,13 +12,17 @@
   "tableCount": 10,
   "okTables": 4,
   "totalRows": 2293,
-  "rawRowsTotal": 16364,
-  "droppedEmptyRowsTotal": 14071,
+  "rawRowsTotal": 24302,
+  "droppedEmptyRowsTotal": 22009,
   "truncatedTables": [],
   "emptyTables": [
     {
       "key": "overview",
       "name": "1.日报总览"
+    },
+    {
+      "key": "ads",
+      "name": "3.投放日报"
     },
     {
       "key": "content",
@@ -37,14 +41,8 @@
       "name": "7.团队战力评估"
     }
   ],
-  "complete": false,
-  "failedTables": [
-    {
-      "key": "ads",
-      "name": "3.投放日报",
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A0F6DE-F0EF-7F70-ADA3-E57B86D0DB6B\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-01 17:50:00 到 2026-10-01 17:50:00 请求总次数超过 100 次, 限制将在 2026-10-01 17:50:01 结束.\"}"
-    }
-  ],
+  "complete": true,
+  "failedTables": [],
   "ownerJoin": {
     "column": "负责人",
     "from": "11.店铺负责人（jLVFycP）",
@@ -35587,14 +35585,26 @@
       "name": "3.投放日报",
       "group": "投放",
       "tableId": "p8b405p6gt2jgntr1ul26",
-      "fieldCount": 0,
+      "fieldCount": 11,
       "rowCount": 0,
-      "rawRows": 0,
-      "droppedEmptyRows": 0,
+      "rawRows": 7938,
+      "droppedEmptyRows": 7938,
       "truncated": false,
-      "columns": [],
-      "rows": [],
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A0F6DE-F0EF-7F70-ADA3-E57B86D0DB6B\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-01 17:50:00 到 2026-10-01 17:50:00 请求总次数超过 100 次, 限制将在 2026-10-01 17:50:01 结束.\"}"
+      "pagesFetched": 80,
+      "columns": [
+        "备注",
+        "星期",
+        "促销节点",
+        "日期",
+        "展示",
+        "花费",
+        "成交",
+        "ROI",
+        "CTR",
+        "点击",
+        "店铺"
+      ],
+      "rows": []
     },
     {
       "key": "content",
