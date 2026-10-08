@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-08T10:07:45.242Z",
-  "fetchedAtLocal": "2026/10/8 18:07:45",
+  "fetchedAt": "2026-10-08T16:00:10.330Z",
+  "fetchedAtLocal": "2026/10/9 00:00:10",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -12,25 +12,13 @@
   "tableCount": 10,
   "okTables": 4,
   "totalRows": 2434,
-  "rawRowsTotal": 24302,
-  "droppedEmptyRowsTotal": 21868,
+  "rawRowsTotal": 8264,
+  "droppedEmptyRowsTotal": 5830,
   "truncatedTables": [],
   "emptyTables": [
     {
       "key": "overview",
       "name": "1.日报总览"
-    },
-    {
-      "key": "ads",
-      "name": "3.投放日报"
-    },
-    {
-      "key": "content",
-      "name": "4.内容达人日报"
-    },
-    {
-      "key": "traffic",
-      "name": "5.流量竞品日报"
     },
     {
       "key": "supply",
@@ -41,8 +29,24 @@
       "name": "7.团队战力评估"
     }
   ],
-  "complete": true,
-  "failedTables": [],
+  "complete": false,
+  "failedTables": [
+    {
+      "key": "ads",
+      "name": "3.投放日报",
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3213-77F8-A660-DA59849DD2D8\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:00 到 2026-10-09 00:00:00 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:01 结束.\"}"
+    },
+    {
+      "key": "content",
+      "name": "4.内容达人日报",
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-369E-74B5-964B-6D86D804CDDA\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:01 到 2026-10-09 00:00:01 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:02 结束.\"}"
+    },
+    {
+      "key": "traffic",
+      "name": "5.流量竞品日报",
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/56p4no5umzcmokaaefh63/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3BA0-7662-B2CB-6078829FA031\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:02 到 2026-10-09 00:00:02 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:03 结束.\"}"
+    }
+  ],
   "ownerJoin": {
     "column": "负责人",
     "from": "11.店铺负责人（jLVFycP）",
@@ -37892,94 +37896,42 @@
       "name": "3.投放日报",
       "group": "投放",
       "tableId": "p8b405p6gt2jgntr1ul26",
-      "fieldCount": 11,
+      "fieldCount": 0,
       "rowCount": 0,
-      "rawRows": 7938,
-      "droppedEmptyRows": 7938,
+      "rawRows": 0,
+      "droppedEmptyRows": 0,
       "truncated": false,
-      "pagesFetched": 80,
-      "columns": [
-        "备注",
-        "星期",
-        "促销节点",
-        "日期",
-        "展示",
-        "花费",
-        "成交",
-        "ROI",
-        "CTR",
-        "点击",
-        "店铺"
-      ],
-      "rows": []
+      "columns": [],
+      "rows": [],
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3213-77F8-A660-DA59849DD2D8\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:00 到 2026-10-09 00:00:00 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:01 结束.\"}"
     },
     {
       "key": "content",
       "name": "4.内容达人日报",
       "group": "内容",
       "tableId": "6z8rcxay1hhhv4xmbbc89",
-      "fieldCount": 19,
+      "fieldCount": 0,
       "rowCount": 0,
-      "rawRows": 7938,
-      "droppedEmptyRows": 7938,
+      "rawRows": 0,
+      "droppedEmptyRows": 0,
       "truncated": false,
-      "pagesFetched": 80,
-      "columns": [
-        "备注",
-        "促销节点",
-        "日期",
-        "星期",
-        "笔记数",
-        "互动",
-        "图文总曝光",
-        "店播新增粉丝",
-        "达人视频发布数",
-        "UGC总播放",
-        "达人视频总互动",
-        "达人视频总播放",
-        "UGC发布数",
-        "店播时长(h)",
-        "店播场观",
-        "品牌自产视频数",
-        "店播GMV",
-        "品牌搜索量",
-        "店铺"
-      ],
-      "rows": []
+      "columns": [],
+      "rows": [],
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-369E-74B5-964B-6D86D804CDDA\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:01 到 2026-10-09 00:00:01 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:02 结束.\"}"
     },
     {
       "key": "traffic",
       "name": "5.流量竞品日报",
       "group": "流量",
       "tableId": "56p4no5umzcmokaaefh63",
-      "fieldCount": 19,
+      "fieldCount": 0,
       "rowCount": 0,
-      "rawRows": 162,
-      "droppedEmptyRows": 162,
+      "rawRows": 0,
+      "droppedEmptyRows": 0,
       "truncated": false,
-      "pagesFetched": 2,
-      "columns": [
-        "当日预警(红/黄/绿)",
-        "应对动作",
-        "促销节点",
-        "竞品B活动",
-        "星期",
-        "竞品A价格变化",
-        "平台",
-        "竞品C活动",
-        "竞品A活动",
-        "竞品C价格变化",
-        "日期",
-        "竞品B价格变化",
-        "推荐流量占比",
-        "付费流量占比",
-        "搜索流量占比",
-        "核心词台球杆排名",
-        "核心词大头杆排名",
-        "品牌词搜索排名",
-        "DSR评分(最低)"
-      ],
-      "rows": []
+      "columns": [],
+      "rows": [],
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/56p4no5umzcmokaaefh63/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3BA0-7662-B2CB-6078829FA031\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:02 到 2026-10-09 00:00:02 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:03 结束.\"}"
     },
     {
       "key": "supply",
