@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-08T16:00:10.330Z",
-  "fetchedAtLocal": "2026/10/9 00:00:10",
+  "fetchedAt": "2026-10-09T10:10:10.726Z",
+  "fetchedAtLocal": "2026/10/9 18:10:10",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,14 +11,22 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2434,
-  "rawRowsTotal": 8264,
-  "droppedEmptyRowsTotal": 5830,
+  "totalRows": 2442,
+  "rawRowsTotal": 16364,
+  "droppedEmptyRowsTotal": 13922,
   "truncatedTables": [],
   "emptyTables": [
     {
       "key": "overview",
       "name": "1.日报总览"
+    },
+    {
+      "key": "ads",
+      "name": "3.投放日报"
+    },
+    {
+      "key": "traffic",
+      "name": "5.流量竞品日报"
     },
     {
       "key": "supply",
@@ -32,19 +40,9 @@
   "complete": false,
   "failedTables": [
     {
-      "key": "ads",
-      "name": "3.投放日报",
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3213-77F8-A660-DA59849DD2D8\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:00 到 2026-10-09 00:00:00 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:01 结束.\"}"
-    },
-    {
       "key": "content",
       "name": "4.内容达人日报",
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-369E-74B5-964B-6D86D804CDDA\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:01 到 2026-10-09 00:00:01 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:02 结束.\"}"
-    },
-    {
-      "key": "traffic",
-      "name": "5.流量竞品日报",
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/56p4no5umzcmokaaefh63/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3BA0-7662-B2CB-6078829FA031\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:02 到 2026-10-09 00:00:02 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:03 结束.\"}"
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A12024-201F-75EF-B902-5CE3CC704BD8\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 18:10:00 到 2026-10-09 18:10:00 请求总次数超过 100 次, 限制将在 2026-10-09 18:10:01 结束.\"}"
     }
   ],
   "ownerJoin": {
@@ -162,9 +160,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 16,
-      "rowCount": 1083,
+      "rowCount": 1088,
       "rawRows": 3406,
-      "droppedEmptyRows": 2323,
+      "droppedEmptyRows": 2318,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -5849,6 +5847,20 @@
         },
         {
           "推广费": "0",
+          "UV": "152",
+          "促销节点": "国庆黄金周",
+          "客单价": "450",
+          "平台": "抖店",
+          "日期": "10/08",
+          "全店GMV": "450",
+          "转化率": "0.0066",
+          "订单量": "1",
+          "星期": "四",
+          "ROI": "0",
+          "店铺名": "抖店-康伦-梦之豪台球个体店"
+        },
+        {
+          "推广费": "0",
           "UV": "140",
           "促销节点": "国庆黄金周",
           "客单价": "35",
@@ -8143,6 +8155,23 @@
           "店铺名": "1688-欧力龙"
         },
         {
+          "推广费": "153.69",
+          "UV": "268",
+          "加购数": "0",
+          "客单价": "94.67",
+          "全店GMV": "568",
+          "订单量": "6",
+          "星期": "四",
+          "ROI": "3.49",
+          "退货率": "0.3415",
+          "促销节点": "国庆黄金周",
+          "平台": "抖店",
+          "日期": "10/08",
+          "转化率": "0.0224",
+          "加购率": "0",
+          "店铺名": "抖店-皇族台球个体店"
+        },
+        {
           "推广费": "0",
           "UV": "39",
           "客单价": "0",
@@ -9130,6 +9159,23 @@
           "转化率": "0",
           "加购率": "0.625",
           "店铺名": "京东-CRICAL欧立龙专卖店"
+        },
+        {
+          "推广费": "0",
+          "UV": "161",
+          "加购数": "9",
+          "客单价": "104.2",
+          "全店GMV": "416.78",
+          "订单量": "5",
+          "星期": "四",
+          "ROI": "0",
+          "退货率": "0.2807",
+          "促销节点": "国庆黄金周",
+          "平台": "拼多多",
+          "日期": "10/08",
+          "转化率": "0.0248",
+          "加购率": "0.0559",
+          "店铺名": "拼多多-AXD"
         },
         {
           "推广费": "0",
@@ -14052,6 +14098,23 @@
           "店铺名": "拼多多-AXD"
         },
         {
+          "推广费": "0",
+          "UV": "61",
+          "加购数": "3",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "四",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "国庆黄金周",
+          "平台": "淘宝",
+          "日期": "10/08",
+          "转化率": "0",
+          "加购率": "0.0491",
+          "店铺名": "淘宝-九跃台球用品店"
+        },
+        {
           "推广费": "89.33",
           "UV": "287",
           "加购数": "8",
@@ -17304,6 +17367,23 @@
           "店铺名": "得物-KONLLEN"
         },
         {
+          "推广费": "17.39",
+          "UV": "63",
+          "加购数": "1",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "四",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "国庆黄金周",
+          "平台": "淘宝",
+          "日期": "10/08",
+          "转化率": "0",
+          "加购率": "0.0158",
+          "店铺名": "淘宝-球杆大圣聚杆堂"
+        },
+        {
           "推广费": "0",
           "UV": "24",
           "加购数": "4",
@@ -17879,9 +17959,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1278,
+      "rowCount": 1281,
       "rawRows": 4437,
-      "droppedEmptyRows": 3159,
+      "droppedEmptyRows": 3156,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -18750,6 +18830,21 @@
           "日期": "08/06",
           "转化率": "0.033",
           "店铺名": "亚马逊-亚马逊A"
+        },
+        {
+          "推广费": "238.72",
+          "UV": "817",
+          "加购数": "52",
+          "客单价": "281.0934",
+          "全店GMV": "2248.4795",
+          "订单量": "8",
+          "星期": "四",
+          "ROI": "7.71",
+          "促销节点": "国庆黄金周",
+          "平台": "速卖通",
+          "日期": "10/08",
+          "转化率": "0.0098",
+          "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
         },
         {
           "推广费": "336.022688",
@@ -29032,6 +29127,22 @@
           "店铺名": "TEMU-black billiards半托管"
         },
         {
+          "推广费": "388.7722",
+          "UV": "1274",
+          "加购数": "119",
+          "客单价": "417.676",
+          "全店GMV": "4142.3128",
+          "订单量": "9",
+          "星期": "四",
+          "ROI": "10.07",
+          "促销节点": "国庆黄金周",
+          "平台": "Shopee",
+          "日期": "10/08",
+          "转化率": "0.0032",
+          "加购率": "0.1408",
+          "店铺名": "Shopee-伊利莱-konllen billiards equipment"
+        },
+        {
           "推广费": "282.81",
           "UV": "1080",
           "加购数": "14",
@@ -31625,6 +31736,23 @@
           "转化率": "0",
           "加购率": "0.0545",
           "店铺名": "Shopee-康伦"
+        },
+        {
+          "推广费": "37.01",
+          "UV": "842",
+          "加购数": "71",
+          "客单价": "57",
+          "全店GMV": "627.02",
+          "订单量": "11",
+          "星期": "四",
+          "ROI": "16.94",
+          "退货率": "0",
+          "促销节点": "国庆黄金周",
+          "平台": "TEMU",
+          "日期": "10/08",
+          "转化率": "0.013",
+          "加购率": "0.0843",
+          "店铺名": "TEMU-AXD sports 全托管"
         },
         {
           "推广费": "30",
@@ -37896,14 +38024,26 @@
       "name": "3.投放日报",
       "group": "投放",
       "tableId": "p8b405p6gt2jgntr1ul26",
-      "fieldCount": 0,
+      "fieldCount": 11,
       "rowCount": 0,
-      "rawRows": 0,
-      "droppedEmptyRows": 0,
+      "rawRows": 7938,
+      "droppedEmptyRows": 7938,
       "truncated": false,
-      "columns": [],
-      "rows": [],
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3213-77F8-A660-DA59849DD2D8\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:00 到 2026-10-09 00:00:00 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:01 结束.\"}"
+      "pagesFetched": 80,
+      "columns": [
+        "备注",
+        "星期",
+        "促销节点",
+        "日期",
+        "展示",
+        "花费",
+        "成交",
+        "ROI",
+        "CTR",
+        "点击",
+        "店铺"
+      ],
+      "rows": []
     },
     {
       "key": "content",
@@ -37917,21 +38057,41 @@
       "truncated": false,
       "columns": [],
       "rows": [],
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-369E-74B5-964B-6D86D804CDDA\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:01 到 2026-10-09 00:00:01 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:02 结束.\"}"
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A12024-201F-75EF-B902-5CE3CC704BD8\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 18:10:00 到 2026-10-09 18:10:00 请求总次数超过 100 次, 限制将在 2026-10-09 18:10:01 结束.\"}"
     },
     {
       "key": "traffic",
       "name": "5.流量竞品日报",
       "group": "流量",
       "tableId": "56p4no5umzcmokaaefh63",
-      "fieldCount": 0,
+      "fieldCount": 19,
       "rowCount": 0,
-      "rawRows": 0,
-      "droppedEmptyRows": 0,
+      "rawRows": 162,
+      "droppedEmptyRows": 162,
       "truncated": false,
-      "columns": [],
-      "rows": [],
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/56p4no5umzcmokaaefh63/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A11C3E-3BA0-7662-B2CB-6078829FA031\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-10-09 00:00:02 到 2026-10-09 00:00:02 请求总次数超过 100 次, 限制将在 2026-10-09 00:00:03 结束.\"}"
+      "pagesFetched": 2,
+      "columns": [
+        "当日预警(红/黄/绿)",
+        "应对动作",
+        "促销节点",
+        "竞品B活动",
+        "星期",
+        "竞品A价格变化",
+        "平台",
+        "竞品C活动",
+        "竞品A活动",
+        "竞品C价格变化",
+        "日期",
+        "竞品B价格变化",
+        "推荐流量占比",
+        "付费流量占比",
+        "搜索流量占比",
+        "核心词台球杆排名",
+        "核心词大头杆排名",
+        "品牌词搜索排名",
+        "DSR评分(最低)"
+      ],
+      "rows": []
     },
     {
       "key": "supply",
