@@ -57,7 +57,7 @@ team-portal/
 │   ├── datastore.js        # ★ 通用三源合并数据层（用户表 / 内容表共用一份实现）
 │   ├── api.js              # 静态版本地数据层（模拟原后端 API）
 │   ├── auth.js             # 认证与权限
-│   ├── portal.js           # 顶栏 / 守卫 / 提示 / 数据新鲜度（freshness / freshnessTag）
+│   ├── portal.js           # 顶栏 / 守卫 / 提示 / 数据新鲜度 / ⌘K 命令面板
 │   ├── board.js            # 业务数据看板的图表与聚合逻辑（ECharts）
 │   ├── landing.js          # ★ 加入我们：岗位数据 + 渲染（index / login / careers 三页共用一份）
 │   └── config/roles.js     # 默认角色 + 默认用户（密码哈希）
@@ -420,7 +420,15 @@ bash tools/sync-local.sh --force    # 确认丢弃未提交改动，强制对齐
 
 ## 📝 变更日志
 
-> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.9.0`、`js/portal.js` `2.7.0`、`js/config/roles.js` `2.1.0`、`js/board.js` `2.2.5`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+> 站点版本与资源版本分开：站点版本走语义化（v1.x.x），HTML 里的 `?v=` 是**缓存击穿号**（当前 `js/api.js` `2.9.0`、`js/portal.js` `2.8.0`、`js/config/roles.js` `2.1.0`、`js/board.js` `2.2.5`，`js/datastore.js` 与 `css/portal.css` 仍 `2.5.0`）。
+
+- **v1.8.0**（2026-10-10）· 资源版本 `js/portal.js?v=2.7.0 → 2.8.0`（14 个引用它的 HTML 全部同步 bump；`css/portal.css` 特意没动，见下）：
+  - ⌨️ **新增 ⌘K 命令面板：任何页面按 `Ctrl+K`（Mac `Cmd+K`）弹出全局搜索，键盘直达任何页面 / 数据表 / 动作**，不用先记住入口在哪一层。
+  - 🔩 **数据纪律与顶栏导航吃同一份**：页面项直接来自 `loadConfig()` 的 `PAGE_CATALOG`、按 `Auth.canAccess` 过滤，**不另抄清单**；`nav:false` 的后台工具页对管理员在面板里照常可达（面板是快捷方式不是权限边界）。数据表项**懒加载** `/api/data/daily` 的表清单（仅当能进 `tables.html` 才加载，每会话缓存一次），表名 / 分组 / 行数全部来自快照本身，不硬编码。
+  - 🎨 **样式由 JS 注入 `<style id="portalPaletteStyle">`**（沿用 freshnessTag 的「样式跟功能走」惯例），`css/portal.css` 一行未动 —— 全站 15 页的 css `?v=` 不用跳。
+  - ⌨️ 键盘操作完整：`↑`/`↓` 移动高亮、`Enter` 跳转、`Esc` 关闭；高亮下标由模块状态 `_ppActive` 统一维护（render 重置为 0、move 上下夹住），Enter 不会跳错项。
+  - 🧪 冒烟脚本新增第 **⑨** 组（真开浏览器按 `Ctrl+K`，不是正则）：按钮注入 / 弹出并聚焦 / 默认列出页面+数据表+动作 / 输入「日报总览」过滤到唯一项 / `↓`+`Enter` **真导航**到 `pages/tables.html?table=overview` / `Esc` 关闭，共 6 项。
+  - ⚠️ **注册菜单里的「页面」组不含当前页**（已经在上面了）。
 
 - **v1.7.7**（2026-09-16）· 资源版本 `js/board.js?v=2.2.4 → 2.2.5`（**只动 `pages/board.html` 一处引用**）；抓取脚本无 `?v=`，但**改了就要重新抓一次才生效**（见下）：
   - 🐛 **修：看板「负责人业绩明细」17 行的负责人列全是 `—`、图④ 的坐标轴只有「平台 · 区域」，看不出这是谁的业绩。**

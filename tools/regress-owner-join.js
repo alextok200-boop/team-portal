@@ -272,7 +272,11 @@ async function browserTests(D) {
   const basePath = new URL(BASE).pathname.replace(/\/$/, '');
 
   try {
-    browser = await puppeteer.launch(Object.assign({ headless: 'new', args: ['--no-sandbox', '--disable-dev-shm-usage'] }));
+    /* CHROME_PATH 与 smoke-site.js 同款：本机没有 puppeteer 缓存 Chrome 时，
+       用本机安装的 Chrome（版本一致才不会踩 userDataDir 兼容坑） */
+    const launchOpts = { headless: 'new', args: ['--no-sandbox', '--disable-dev-shm-usage'] };
+    if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
+    browser = await puppeteer.launch(launchOpts);
     const page = await browser.newPage();
     await page.setViewport({ width: 1400, height: 1000 });
 

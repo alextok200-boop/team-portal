@@ -4,6 +4,7 @@
    依赖：api.js + auth.js（须先加载）
    提供：Portal.boot(opts) / toast / esc / fmtTime / fmtNum
          / freshness(fetchedAt) / freshnessTag(fetchedAt)
+         / palette（⌘K 命令面板：搜页面 / 数据表 / 动作，键盘直达）
    ============================================================ */
 
 var Portal = (function () {
@@ -72,6 +73,9 @@ var Portal = (function () {
     document.body.insertAdjacentHTML('afterbegin', html);
     var btn = document.getElementById('logoutBtn');
     if (btn) btn.addEventListener('click', function () { Auth.logout(); });
+
+    /* ⌘K 命令面板：顶栏按钮 + 全局快捷键（数据与样式纪律见 installPalette 注释） */
+    installPalette();
   }
 
   /* ── 页面启动流程：校验 → 鉴权 → 渲染导航 ────── */
@@ -240,6 +244,213 @@ var Portal = (function () {
       ';border:1px solid ' + c.bd + '">' + esc(f.text) + '</span>';
   }
 
+  /* ── ⌘K 命令面板（全局搜索：页面 / 数据表 / 动作）──────────
+     学自品牌官网的命令面板工作流：键盘直达任何页面，不用先记住入口在哪一层。
+     数据纪律（与顶栏导航吃同一份数据，绝不另抄清单）：
+       · 页面项 = loadConfig() 的 nav（即 PAGE_CATALOG），按 Auth.canAccess 过滤。
+         nav:false 的页面（收进管理后台的工具页）在面板里**照常可达** ——
+         面板是快捷方式不是权限边界，能过 canAccess 就该搜得到。
+       · 数据表项懒加载 /api/data/daily 的表清单（仅当能进 tables.html 才加载），
+         每个会话只拉一遍并缓存；表名/分组/行数全部来自快照本身，不硬编码。
+       · 样式由 JS 注入 <style id="portalPaletteStyle">（沿用 freshnessTag 的
+         「样式跟功能走」惯例，不动 css/portal.css —— 否则 15 页 css ?v= 全要跳）。 */
+  var _paletteStyleDone = false;
+  var _ppPageItems = [];    // 页面 + 动作（同步，来自 loadConfig）
+  var _ppTableItems = [];   // 数据表（懒加载缓存；[] = 加载过但为空/失败/无权）
+  var _ppFiltered = [];     // 当前过滤结果（键盘导航的下标映射）
+  var _ppBox = null;        // 面板 wrap（懒创建，页面级单例）
+  var _ppActive = 0;        // 当前高亮项在 _ppFiltered 里的下标
+
+  function ensurePaletteStyle() {
+    if (_paletteStyleDone) return;
+    _paletteStyleDone = true;
+    var s = document.createElement('style');
+    s.id = 'portalPaletteStyle';
+    /* 色值与 board.js 的 C 常量对齐（card #120b1f / text #eef0ff）；
+       token 只用 portal.css 里确定存在的 --border / --text-dim / --neon-* */
+    s.textContent =
+      '.pp-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;' +
+        'background:rgba(0,200,255,0.08);border:1px solid var(--border);color:var(--text-dim);' +
+        'font-size:12px;cursor:pointer;white-space:nowrap}' +
+      '.pp-btn:hover{color:var(--neon-blue);border-color:rgba(0,200,255,0.4)}' +
+      '.pp-btn kbd{font-family:inherit;font-size:11px;padding:0 5px;border-radius:4px;' +
+        'border:1px solid var(--border);background:rgba(0,0,0,0.3);color:var(--text-dim)}' +
+      '.pp-wrap{position:fixed;inset:0;z-index:2000;background:rgba(4,2,10,0.72);' +
+        'display:none;align-items:flex-start;justify-content:center;padding-top:12vh}' +
+      '.pp-wrap.show{display:flex}' +
+      '.pp-box{width:min(560px,92vw);background:#120b1f;border:1px solid rgba(0,255,163,0.25);' +
+        'border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,0.6);overflow:hidden}' +
+      '.pp-input{width:100%;box-sizing:border-box;padding:14px 18px;background:transparent;border:none;' +
+        'outline:none;color:#eef0ff;font-size:15px}' +
+      '.pp-list{max-height:46vh;overflow:auto;border-top:1px solid var(--border)}' +
+      '.pp-group{padding:8px 18px 4px;font-size:11px;color:var(--text-dim);letter-spacing:2px}' +
+      '.pp-item{display:flex;align-items:center;justify-content:space-between;gap:12px;' +
+        'padding:9px 18px;cursor:pointer;border-left:2px solid transparent}' +
+      '.pp-item.active{background:rgba(0,255,163,0.08);border-left-color:var(--neon-green)}' +
+      '.pp-t{color:#eef0ff;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.pp-s{color:var(--text-dim);font-size:12px;white-space:nowrap}' +
+      '.pp-empty{padding:22px 18px;color:var(--text-dim);font-size:13px;text-align:center}';
+    document.head.appendChild(s);
+  }
+
+  /* 页面项 + 动作项。当前页不列（已经在上面了，搜它没有意义）。 */
+  function palettePageItems(cfg) {
+    var items = [];
+    var current = window.Site && Site.strip
+      ? Site.strip(window.location.pathname) : window.location.pathname;
+    ((cfg && cfg.nav) || []).forEach(function (item) {
+      if (!Auth.canAccess(item.path)) return;                 // 权限过滤同 renderNav，不多不少
+      var p = String(item.path);
+      var stripped = Site.strip ? Site.strip(p) : p;
+      if (stripped === current) return;
+      items.push({
+        group: '页面',
+        title: item.label,
+        sub: item.nav === false ? '后台入口' : stripped,
+        path: p
+      });
+    });
+    items.push({ group: '动作', title: '登出', sub: '退出当前账号', run: function () { Auth.logout(); } });
+    return items;
+  }
+
+  /* 数据表项：懒加载快照表清单（一次性，失败/无权 → 空数组，不报错不重试） */
+  function loadTableItems() {
+    if (_ppTableItems.length) return Promise.resolve(_ppTableItems);
+    if (_ppTableItems.loaded) return Promise.resolve([]);
+    if (!Auth.canAccess('/pages/tables.html')) { _ppTableItems.loaded = true; return Promise.resolve([]); }
+    _ppTableItems.loaded = true;
+    return API.get('/api/data/daily').then(function (res) {
+      var tables = (res && res.ok && res.data && res.data.tables) || [];
+      _ppTableItems = tables.filter(function (t) { return t && t.key && !t.error; }).map(function (t) {
+        return {
+          group: '数据表',
+          title: t.name || t.key,
+          sub: (t.group || '') + (t.rows && t.rows.length ? ' · ' + t.rows.length + ' 行' : ''),
+          path: '/pages/tables.html?table=' + encodeURIComponent(t.key)
+        };
+      });
+      return _ppTableItems;
+    }).catch(function () { return []; });
+  }
+
+  function paletteRender(query) {
+    if (!_ppBox) return;
+    var listEl = _ppBox.querySelector('.pp-list');
+    var q = String(query || '').trim().toLowerCase();
+    _ppFiltered = _ppPageItems.concat(_ppTableItems).filter(function (it) {
+      if (!q) return true;
+      return (it.title + ' ' + (it.sub || '') + ' ' + it.group).toLowerCase().indexOf(q) !== -1;
+    });
+    var html = '', lastGroup = null;
+    _ppActive = 0;
+    _ppFiltered.forEach(function (it, i) {
+      if (it.group !== lastGroup) { html += '<div class="pp-group">' + esc(it.group) + '</div>'; lastGroup = it.group; }
+      html += '<div class="pp-item' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '">' +
+        '<span class="pp-t">' + esc(it.title) + '</span>' +
+        '<span class="pp-s">' + esc(it.sub || '') + '</span></div>';
+    });
+    if (!_ppFiltered.length) html = '<div class="pp-empty">没有匹配的结果</div>';
+    listEl.innerHTML = html;
+  }
+
+  function paletteMove(dir) {
+    if (!_ppBox || !_ppFiltered.length) return;
+    var items = _ppBox.querySelectorAll('.pp-item');
+    var cur = _ppActive;
+    var next = Math.min(items.length - 1, Math.max(0, cur + dir));
+    if (items[cur]) items[cur].classList.remove('active');
+    if (items[next]) {
+      items[next].classList.add('active');
+      try { items[next].scrollIntoView({ block: 'nearest' }); } catch (e) { /* ignore */ }
+    }
+    _ppActive = next;
+  }
+
+  function paletteGo(idx) {
+    var it = _ppFiltered[idx];
+    if (!it) return;
+    closePalette();
+    if (it.run) { it.run(); return; }
+    window.location.href = Site.url(it.path);
+  }
+
+  function openPalette() {
+    ensurePaletteStyle();
+    if (!_ppBox) {
+      _ppBox = document.createElement('div');
+      _ppBox.className = 'pp-wrap';
+      _ppBox.id = 'paletteWrap';
+      _ppBox.innerHTML =
+        '<div class="pp-box">' +
+          '<input class="pp-input" type="text" placeholder="搜索页面 / 数据表 / 动作…" autocomplete="off">' +
+          '<div class="pp-list"></div>' +
+        '</div>';
+      document.body.appendChild(_ppBox);
+      _ppBox.addEventListener('click', function (e) { if (e.target === _ppBox) closePalette(); });
+      var inp = _ppBox.querySelector('.pp-input');
+      inp.addEventListener('input', function () { paletteRender(this.value); });
+      /* ↑↓ 移动 / Enter 跳转 —— 挂在 input 上，别挂 document（会跟全局快捷键打架） */
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); paletteMove(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); paletteMove(-1); }
+        else if (e.key === 'Enter') { e.preventDefault(); paletteGo(_ppActive); }
+      });
+      _ppBox.querySelector('.pp-list').addEventListener('click', function (e) {
+        var el = e.target && e.target.closest ? e.target.closest('.pp-item') : null;
+        if (el) paletteGo(Number(el.getAttribute('data-idx')));
+      });
+    }
+    _ppBox.classList.add('show');
+    var input = _ppBox.querySelector('.pp-input');
+    input.value = '';
+    setTimeout(function () { try { input.focus(); } catch (e) { /* ignore */ } }, 20);
+    loadConfig().then(function (cfg) {
+      _ppPageItems = palettePageItems(cfg);
+      paletteRender('');
+    });
+    loadTableItems().then(function () {
+      if (_ppBox && _ppBox.classList.contains('show')) {
+        paletteRender(_ppBox.querySelector('.pp-input').value);
+      }
+    });
+  }
+
+  function closePalette() {
+    if (_ppBox) _ppBox.classList.remove('show');
+  }
+
+  function togglePalette() {
+    if (_ppBox && _ppBox.classList.contains('show')) closePalette();
+    else openPalette();
+  }
+
+  /* 安装：顶栏按钮 + 全局快捷键。renderNav 每页只跑一次；
+     面板元素是懒创建的，这里只装按钮和监听器（幂等，防重复注入）。 */
+  function installPalette() {
+    if (document.getElementById('paletteBtn')) return;
+    ensurePaletteStyle();
+    var chip = document.querySelector('.portal-nav-links .user-chip');
+    if (!chip) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pp-btn';
+    btn.id = 'paletteBtn';
+    btn.title = '搜索页面 / 数据表（Ctrl+K）';
+    btn.innerHTML = '搜索 <kbd>Ctrl K</kbd>';
+    btn.addEventListener('click', openPalette);
+    chip.parentNode.insertBefore(btn, chip);
+
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        togglePalette();
+      } else if (e.key === 'Escape') {
+        closePalette();
+      }
+    });
+  }
+
   return {
     boot: boot,
     loadConfig: loadConfig,
@@ -251,6 +462,7 @@ var Portal = (function () {
     fmtTime: fmtTime,
     fmtNum: fmtNum,
     freshness: freshness,
-    freshnessTag: freshnessTag
+    freshnessTag: freshnessTag,
+    palette: { open: openPalette, close: closePalette, toggle: togglePalette }
   };
 })();

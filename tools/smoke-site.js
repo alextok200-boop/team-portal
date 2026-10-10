@@ -28,6 +28,10 @@
         **站点根**解析的 —— 在 pages/ 页里裸写 `tables.html` 会去请求根下的
         tables.html 而真实文件在 pages/ 下 ⇒ 点卡片直接 404。断言相对链接必须
         带 pages/ 前缀（根级 index/login 除外），且目标文件真实存在。
+     ⑨ ⌘K 命令面板（浏览器内真按快捷键，不是正则）：Ctrl+K 面板弹出、
+        输入即过滤、↑↓ 移动高亮、Enter 真导航到对应页面/数据表、Esc 关闭。
+        面板的数据源纪律（吃 PAGE_CATALOG 同一份 + canAccess 同一过滤 + 快照表懒加载）
+        改坏了这里会红。
 
    前置：仓库父目录起 python -m http.server 8971
    运行：node tools/smoke-site.js
@@ -123,6 +127,25 @@ function stripComments(src, isHtml) {
     const i = l.indexOf('//');
     return i === -1 ? l : l.slice(0, i);
   }).join('\n');
+}
+
+/* ⚠️ 本机环境退化（2026-10-10 发现）：child_process 的 **spawnSync / execFileSync
+   会稳定抛 EBUSY**（异步 spawn 完全正常；node 22 / 24、managed / 系统 / 临时副本全中，
+   沙箱内外一致）。④⑦ 两组需要「真跑子进程」，一律走这个异步包装，别再退回 spawnSync。
+   返回 { ok, out }：ok=退出码 0，out=stdout+stderr 合并。 */
+function runNode(args, opts) {
+  opts = opts || {};
+  return new Promise((resolve) => {
+    const p = childProcess.spawn(process.execPath, args, {
+      cwd: opts.cwd,
+      env: opts.env || process.env
+    });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    p.stderr.on('data', d => { out += d; });
+    p.on('error', e => resolve({ ok: false, out: out + 'ERR ' + e.message }));
+    p.on('close', code => resolve({ ok: code === 0, out: out }));
+  });
 }
 
 (async () => {
@@ -234,10 +257,9 @@ function stripComments(src, isHtml) {
       const probe = 'const t=new Date("2026-09-11T13:11:57.000Z");'
         + 'process.stdout.write(t.' + m[0].replace(/^new Date\(\)\./, '') + ');';
       let out = '';
-      try {
-        out = childProcess.execFileSync(process.execPath, ['-e', probe],
-          { env: Object.assign({}, process.env, { TZ: 'UTC' }), encoding: 'utf8' }).trim();
-      } catch (e) { out = 'ERR ' + e.message; }
+      const r4 = await runNode(['-e', probe],
+        { env: Object.assign({}, process.env, { TZ: 'UTC' }) });
+      out = r4.ok ? r4.out.trim() : 'ERR ' + r4.out.trim().slice(0, 120);
       check('TZ=UTC 下 13:11:57Z 渲染为北京 21:11:57（而非 13:11:57）',
             /^2026\/9\/11 21:11:57/.test(out), '实际输出: ' + JSON.stringify(out));
     }
@@ -327,18 +349,17 @@ function stripComments(src, isHtml) {
             !/process\.exit\(1\)/.test(notifySrc), '发现 process.exit(1)');
 
       let dump = '', dumpErr = '';
-      try {
-        dump = childProcess.execFileSync(process.execPath, [notifyPath, '--dry-run'], {
-          cwd: REPO, encoding: 'utf8',
-          env: Object.assign({}, process.env, {
-            GITHUB_SERVER_URL: 'https://github.com',
-            GITHUB_REPOSITORY: 'alextok200-boop/team-portal',
-            GITHUB_RUN_ID: '42',
-            GITHUB_WORKFLOW: '钉钉日报数据抓取',
-            GITHUB_EVENT_NAME: 'schedule'
-          })
-        });
-      } catch (e) { dumpErr = e.message; }
+      const r7 = await runNode([notifyPath, '--dry-run'], {
+        cwd: REPO,
+        env: Object.assign({}, process.env, {
+          GITHUB_SERVER_URL: 'https://github.com',
+          GITHUB_REPOSITORY: 'alextok200-boop/team-portal',
+          GITHUB_RUN_ID: '42',
+          GITHUB_WORKFLOW: '钉钉日报数据抓取',
+          GITHUB_EVENT_NAME: 'schedule'
+        })
+      });
+      if (r7.ok) dump = r7.out; else dumpErr = r7.out.trim().slice(0, 160) || 'spawn 失败';
       check('dry-run 能跑通（退出码 0）', !dumpErr, dumpErr);
 
       const jsonLine = (dump.split('\n').find(l => l.trim().charAt(0) === '{') || '').trim();
@@ -402,6 +423,69 @@ function stripComments(src, isHtml) {
     check('页面内跳转都按「相对站点根」写对（扫 ' + scanTargets.length + ' 个文件）',
           badLinks.length === 0, JSON.stringify(badLinks));
     check('引用的页面文件都真实存在', missingTargets.length === 0, JSON.stringify(missingTargets));
+
+    /* ── ⑨ ⌘K 命令面板（浏览器内真按快捷键）──
+       为什么真按而不正则：面板是「渲染 + 过滤 + 键盘导航」三段接线，
+       任何一段断掉（监听器没挂、过滤字段写错、Enter 用的下标没更新）静态扫都看不出来。
+       流程：admin 打开 board.html → 断言顶栏有搜索按钮 → 按 Ctrl+K 面板弹出 →
+       输入「日报总览」过滤出数据表项 → 按 ↓ 再 Enter → 真导航到 tables.html?table=… →
+       再开面板按 Esc 关闭。
+       ⚠️ 注意 ⑤ 已把 page 停在真实页面（不是 about:blank），这里重新 goto 一次拿确定状态。 */
+    console.log('\n⑨ ⌘K 命令面板（浏览器内真按快捷键）');
+    await page.goto(BASE + '/pages/board.html', { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 700));   // boot + renderNav + 面板按钮注入
+
+    const ppBtn = await page.evaluate(() => !!document.getElementById('paletteBtn'));
+    check('顶栏注入 ⌘K 搜索按钮', ppBtn);
+
+    await page.keyboard.down('Control');
+    await page.keyboard.press('KeyK');
+    await page.keyboard.up('Control');
+    await new Promise(r => setTimeout(r, 350));   // loadConfig(缓存) + 渲染列表
+    const opened = await page.evaluate(() => {
+      const w = document.getElementById('paletteWrap');
+      return {
+        show: !!(w && w.classList.contains('show')),
+        items: w ? w.querySelectorAll('.pp-item').length : 0,
+        groups: w ? [...w.querySelectorAll('.pp-group')].map(g => g.textContent) : [],
+        focused: document.activeElement && document.activeElement.classList.contains('pp-input')
+      };
+    });
+    check('Ctrl+K 弹出面板且输入框聚焦', opened.show && opened.focused, JSON.stringify(opened).slice(0, 160));
+    check('面板默认列出条目（页面 + 动作 + 数据表）', opened.items >= 8, '条目数=' + opened.items);
+    check('分组含「页面」与「数据表」',
+          opened.groups.indexOf('页面') !== -1 && opened.groups.indexOf('数据表') !== -1,
+          JSON.stringify(opened.groups));
+
+    await page.keyboard.type('日报总览');
+    await new Promise(r => setTimeout(r, 250));
+    const filtered = await page.evaluate(() => {
+      const w = document.getElementById('paletteWrap');
+      if (!w) return { n: 0, first: '' };   // 面板没弹出时优雅报红，别让 evaluate 抛异常吞掉汇总
+      const first = w.querySelector('.pp-item.active .pp-t');
+      return { n: w.querySelectorAll('.pp-item').length, first: first ? first.textContent : '' };
+    });
+    check('输入「日报总览」过滤到唯一数据表项', filtered.n === 1 && filtered.first.indexOf('日报总览') !== -1,
+          JSON.stringify(filtered));
+
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {});
+    const landed = page.url().replace(BASE, '');
+    check('Enter 真导航到对应数据表页', landed.indexOf('/pages/tables.html?table=overview') === 0,
+          '实际落地: ' + landed);
+
+    /* 关闭路径：再开一次，Esc 应收起（Enter 已导航，元素是同一份新文档重新懒建的） */
+    await page.keyboard.down('Control');
+    await page.keyboard.press('KeyK');
+    await page.keyboard.up('Control');
+    await new Promise(r => setTimeout(r, 250));
+    await page.keyboard.press('Escape');
+    const closed = await page.evaluate(() => {
+      const w = document.getElementById('paletteWrap');
+      return !!(w && !w.classList.contains('show'));
+    });
+    check('Esc 关闭面板', closed);
 
     await page.close();
     await ctx.close();
