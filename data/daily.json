@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-15T08:04:42.072Z",
-  "fetchedAtLocal": "2026/10/15 16:04:42",
+  "fetchedAt": "2026-10-15T13:52:57.123Z",
+  "fetchedAtLocal": "2026/10/15 21:52:57",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2549,
+  "totalRows": 2551,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21756,
+  "droppedEmptyRowsTotal": 21754,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1135,
+      "rowCount": 1137,
       "rawRows": 3409,
-      "droppedEmptyRows": 2274,
+      "droppedEmptyRows": 2272,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -1073,6 +1073,20 @@
           "转化率": "0",
           "加购率": "0",
           "店铺名": "京东-CRICAL欧立龙专卖店"
+        },
+        {
+          "推广费": "0",
+          "UV": "124",
+          "促销节点": "双11备战期",
+          "客单价": "42.27",
+          "平台": "抖店",
+          "日期": "10/14",
+          "全店GMV": "84.55",
+          "转化率": "0.0161",
+          "订单量": "2",
+          "星期": "三",
+          "ROI": "0",
+          "店铺名": "抖店-康伦-梦之豪台球个体店"
         },
         {
           "推广费": "0",
@@ -2875,6 +2889,20 @@
           "日期": "07/29",
           "转化率": "0",
           "店铺名": "1688-伊利莱体育"
+        },
+        {
+          "推广费": "0",
+          "UV": "141",
+          "促销节点": "双11备战期",
+          "客单价": "445",
+          "平台": "抖店",
+          "日期": "10/13",
+          "全店GMV": "445",
+          "转化率": "0.0071",
+          "订单量": "1",
+          "星期": "二",
+          "ROI": "0",
+          "店铺名": "抖店-康伦-梦之豪台球个体店"
         },
         {
           "推广费": "0",
