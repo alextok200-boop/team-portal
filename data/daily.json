@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-21T08:21:53.395Z",
-  "fetchedAtLocal": "2026/10/21 16:21:53",
+  "fetchedAt": "2026-10-21T14:18:56.158Z",
+  "fetchedAtLocal": "2026/10/21 22:18:56",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2696,
+  "totalRows": 2697,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21609,
+  "droppedEmptyRowsTotal": 21608,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -19494,9 +19494,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1443,
+      "rowCount": 1444,
       "rawRows": 4437,
-      "droppedEmptyRows": 2994,
+      "droppedEmptyRows": 2993,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -22386,6 +22386,21 @@
           "日期": "08/20",
           "转化率": "0.0053",
           "店铺名": "LAZADA-Konllen Billiards Shop"
+        },
+        {
+          "推广费": "158.55",
+          "UV": "945",
+          "加购数": "39",
+          "客单价": "171.1932",
+          "全店GMV": "684.6391",
+          "订单量": "4",
+          "星期": "三",
+          "ROI": "0.76",
+          "促销节点": "双11预热",
+          "平台": "速卖通",
+          "日期": "10/21",
+          "转化率": "0.0042",
+          "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
         },
         {
           "推广费": "1133",
