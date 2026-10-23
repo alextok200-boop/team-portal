@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-23T08:20:35.473Z",
-  "fetchedAtLocal": "2026/10/23 16:20:35",
+  "fetchedAt": "2026-10-23T14:02:17.324Z",
+  "fetchedAtLocal": "2026/10/23 22:02:17",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2728,
+  "totalRows": 2731,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21577,
+  "droppedEmptyRowsTotal": 21574,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1197,
+      "rowCount": 1199,
       "rawRows": 3409,
-      "droppedEmptyRows": 2212,
+      "droppedEmptyRows": 2210,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -9586,6 +9586,23 @@
           "星期": "五",
           "ROI": "0",
           "店铺名": "抖店-康伦-梦之豪台球个体店"
+        },
+        {
+          "推广费": "186.12",
+          "UV": "88",
+          "加购数": "37",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "四",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双11预热",
+          "平台": "京东",
+          "日期": "10/22",
+          "转化率": "0",
+          "加购率": "0.5362",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "23.18",
@@ -19431,6 +19448,23 @@
           "店铺名": "淘宝-梦之豪台球用品"
         },
         {
+          "推广费": "0",
+          "UV": "6",
+          "加购数": "0",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "四",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双11预热",
+          "平台": "京东",
+          "日期": "10/22",
+          "转化率": "0",
+          "加购率": "0",
+          "店铺名": "京东-CRICAL欧立龙专卖店"
+        },
+        {
           "推广费": "100",
           "UV": "852",
           "客单价": "815",
@@ -19774,9 +19808,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1458,
+      "rowCount": 1459,
       "rawRows": 4437,
-      "droppedEmptyRows": 2979,
+      "droppedEmptyRows": 2978,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -33612,6 +33646,21 @@
           "转化率": "0.0065",
           "加购率": "0.136",
           "店铺名": "Shopee-伊利莱-konllen billiards equipment"
+        },
+        {
+          "推广费": "365.89",
+          "UV": "681",
+          "加购数": "33",
+          "客单价": "425.7908",
+          "全店GMV": "2554.5446",
+          "订单量": "6",
+          "星期": "五",
+          "ROI": "12.57",
+          "促销节点": "双11预热",
+          "平台": "速卖通",
+          "日期": "10/23",
+          "转化率": "0.0088",
+          "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
         },
         {
           "推广费": "98.12",
