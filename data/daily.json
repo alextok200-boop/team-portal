@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-27T08:44:39.032Z",
-  "fetchedAtLocal": "2026/10/27 16:44:39",
+  "fetchedAt": "2026-10-27T15:06:20.141Z",
+  "fetchedAtLocal": "2026/10/27 23:06:20",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2791,
+  "totalRows": 2793,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21514,
+  "droppedEmptyRowsTotal": 21512,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1223,
+      "rowCount": 1224,
       "rawRows": 3409,
-      "droppedEmptyRows": 2186,
+      "droppedEmptyRows": 2185,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -15713,6 +15713,23 @@
           "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
+          "推广费": "234.6",
+          "UV": "106",
+          "加购数": "42",
+          "客单价": "833",
+          "全店GMV": "833",
+          "订单量": "1",
+          "星期": "一",
+          "ROI": "3.55",
+          "退货率": "0",
+          "促销节点": "双11预热",
+          "平台": "京东",
+          "日期": "10/26",
+          "转化率": "0.0095",
+          "加购率": "0.359",
+          "店铺名": "京东-万世康伦官方旗舰店"
+        },
+        {
           "推广费": "0",
           "UV": "5",
           "加购数": "0",
@@ -20204,9 +20221,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1495,
+      "rowCount": 1496,
       "rawRows": 4437,
-      "droppedEmptyRows": 2942,
+      "droppedEmptyRows": 2941,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -27164,6 +27181,21 @@
           "日期": "08/05",
           "转化率": "0.0055",
           "店铺名": "LAZADA-Konllen Billiards Shop"
+        },
+        {
+          "推广费": "772.96",
+          "UV": "956",
+          "加购数": "44",
+          "客单价": "466.1319",
+          "全店GMV": "5127.1177",
+          "订单量": "11",
+          "星期": "日",
+          "ROI": "9.9",
+          "促销节点": "双11预热",
+          "平台": "速卖通",
+          "日期": "10/25",
+          "转化率": "0.0115",
+          "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
         },
         {
           "推广费": "31.67",
