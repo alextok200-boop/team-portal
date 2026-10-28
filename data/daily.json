@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-28T09:24:01.540Z",
-  "fetchedAtLocal": "2026/10/28 17:24:01",
+  "fetchedAt": "2026-10-28T15:42:12.668Z",
+  "fetchedAtLocal": "2026/10/28 23:42:12",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2803,
+  "totalRows": 2804,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21502,
+  "droppedEmptyRowsTotal": 21501,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1232,
+      "rowCount": 1233,
       "rawRows": 3409,
-      "droppedEmptyRows": 2177,
+      "droppedEmptyRows": 2176,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -19127,6 +19127,23 @@
           "转化率": "0.0122",
           "加购率": "0.0488",
           "店铺名": "天猫-CRICAL旗舰店"
+        },
+        {
+          "推广费": "276.44",
+          "UV": "92",
+          "加购数": "60",
+          "客单价": "2026",
+          "全店GMV": "6078",
+          "订单量": "3",
+          "星期": "二",
+          "ROI": "9.56",
+          "退货率": "0.33",
+          "促销节点": "双11预热",
+          "平台": "京东",
+          "日期": "10/27",
+          "转化率": "0.0309",
+          "加购率": "0.6",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "32.83",
