@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-29T09:28:26.693Z",
-  "fetchedAtLocal": "2026/10/29 17:28:26",
+  "fetchedAt": "2026-10-29T15:48:33.475Z",
+  "fetchedAtLocal": "2026/10/29 23:48:33",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2810,
+  "totalRows": 2811,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21495,
+  "droppedEmptyRowsTotal": 21494,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1237,
+      "rowCount": 1238,
       "rawRows": 3409,
-      "droppedEmptyRows": 2172,
+      "droppedEmptyRows": 2171,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -18349,6 +18349,23 @@
           "转化率": "0.0374",
           "加购率": "0",
           "店铺名": "抖店-皇族台球个体店"
+        },
+        {
+          "推广费": "235",
+          "UV": "113",
+          "加购数": "70",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "三",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双11预热",
+          "平台": "京东",
+          "日期": "10/28",
+          "转化率": "0",
+          "加购率": "0.7216",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "0",
