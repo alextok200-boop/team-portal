@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-30T09:42:45.381Z",
-  "fetchedAtLocal": "2026/10/30 17:42:45",
+  "fetchedAt": "2026-10-30T15:30:28.939Z",
+  "fetchedAtLocal": "2026/10/30 23:30:28",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2833,
+  "totalRows": 2834,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21472,
+  "droppedEmptyRowsTotal": 21471,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1246,
+      "rowCount": 1247,
       "rawRows": 3409,
-      "droppedEmptyRows": 2163,
+      "droppedEmptyRows": 2162,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -2956,6 +2956,23 @@
           "转化率": "0.0135",
           "加购率": "0",
           "店铺名": "拼多多-AXD"
+        },
+        {
+          "推广费": "145.16",
+          "UV": "102",
+          "加购数": "22",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "四",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双11预热",
+          "平台": "京东",
+          "日期": "10/29",
+          "转化率": "0",
+          "加购率": "0.25",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "14.71",
