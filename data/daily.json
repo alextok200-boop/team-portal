@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-10-30T15:30:28.939Z",
-  "fetchedAtLocal": "2026/10/30 23:30:28",
+  "fetchedAt": "2026-10-31T09:22:10.022Z",
+  "fetchedAtLocal": "2026/10/31 17:22:10",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2834,
+  "totalRows": 2835,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21471,
+  "droppedEmptyRowsTotal": 21470,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -20600,9 +20600,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1514,
+      "rowCount": 1515,
       "rawRows": 4437,
-      "droppedEmptyRows": 2923,
+      "droppedEmptyRows": 2922,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -23144,6 +23144,21 @@
           "日期": "07/29",
           "转化率": "0.0123",
           "店铺名": "亚马逊-亚马逊D"
+        },
+        {
+          "推广费": "233.84",
+          "UV": "902",
+          "加购数": "39",
+          "客单价": "359.521",
+          "全店GMV": "1078.5631",
+          "订单量": "3",
+          "星期": "三",
+          "ROI": "45.12",
+          "促销节点": "双11预热",
+          "平台": "速卖通",
+          "日期": "10/28",
+          "转化率": "0.0033",
+          "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
         },
         {
           "推广费": "0.6",
