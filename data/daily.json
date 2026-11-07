@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-07T09:42:35.195Z",
-  "fetchedAtLocal": "2026/11/7 17:42:35",
+  "fetchedAt": "2026-11-07T15:20:13.901Z",
+  "fetchedAtLocal": "2026/11/7 23:20:13",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2939,
-  "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21366,
+  "totalRows": 2944,
+  "rawRowsTotal": 16367,
+  "droppedEmptyRowsTotal": 13423,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -23,10 +23,6 @@
     {
       "key": "ads",
       "name": "3.投放日报"
-    },
-    {
-      "key": "content",
-      "name": "4.内容达人日报"
     },
     {
       "key": "traffic",
@@ -41,8 +37,14 @@
       "name": "7.团队战力评估"
     }
   ],
-  "complete": true,
-  "failedTables": [],
+  "complete": false,
+  "failedTables": [
+    {
+      "key": "content",
+      "name": "4.内容达人日报",
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A1B698-5C4D-77C0-8366-D1FA6F9CE09D\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-11-07 23:20:00 到 2026-11-07 23:20:00 请求总次数超过 100 次, 限制将在 2026-11-07 23:20:01 结束.\"}"
+    }
+  ],
   "ownerJoin": {
     "column": "负责人",
     "from": "11.店铺负责人（jLVFycP）",
@@ -21625,9 +21627,9 @@
       "group": "分店铺",
       "tableId": "Nra7g5p",
       "fieldCount": 15,
-      "rowCount": 1558,
+      "rowCount": 1563,
       "rawRows": 4437,
-      "droppedEmptyRows": 2879,
+      "droppedEmptyRows": 2874,
       "truncated": false,
       "pagesFetched": 45,
       "columns": [
@@ -28965,6 +28967,22 @@
           "店铺名": "TEMU-Yohi Billiards 全托管"
         },
         {
+          "推广费": "31.17",
+          "UV": "164",
+          "加购数": "1",
+          "客单价": "127.52",
+          "全店GMV": "127.52",
+          "订单量": "1",
+          "星期": "三",
+          "ROI": "0",
+          "促销节点": "双11爆发",
+          "平台": "Shopee",
+          "日期": "11/04",
+          "转化率": "0.0066",
+          "加购率": "0.0196",
+          "店铺名": "Shopee-康竺-billiard zone"
+        },
+        {
           "推广费": "4800.99",
           "UV": "3325",
           "加购数": "0",
@@ -29112,6 +29130,22 @@
           "转化率": "0.0139",
           "加购率": "0.066898349",
           "店铺名": "TEMU-top billiards 全托"
+        },
+        {
+          "推广费": "21.12",
+          "UV": "159",
+          "加购数": "0",
+          "客单价": "83.32",
+          "全店GMV": "83.32",
+          "订单量": "1",
+          "星期": "五",
+          "ROI": "0",
+          "促销节点": "双11爆发",
+          "平台": "Shopee",
+          "日期": "11/06",
+          "转化率": "0.0091",
+          "加购率": "0",
+          "店铺名": "Shopee-康竺-billiard zone"
         },
         {
           "UV": "17",
@@ -30772,6 +30806,22 @@
           "转化率": "0.0183",
           "加购率": "0.1",
           "店铺名": "TEMU-KONLLEN shipstore 半托管"
+        },
+        {
+          "推广费": "55.62",
+          "UV": "177",
+          "加购数": "0",
+          "客单价": "228.54",
+          "全店GMV": "228.54",
+          "订单量": "1",
+          "星期": "二",
+          "ROI": "0",
+          "促销节点": "双11爆发",
+          "平台": "Shopee",
+          "日期": "11/03",
+          "转化率": "0.0059",
+          "加购率": "0",
+          "店铺名": "Shopee-康竺-billiard zone"
         },
         {
           "推广费": "120.589",
@@ -34991,6 +35041,22 @@
           "日期": "09/06",
           "转化率": "0.003",
           "加购率": "0.0123",
+          "店铺名": "Shopee-康竺-billiard zone"
+        },
+        {
+          "推广费": "29.69",
+          "UV": "173",
+          "加购数": "1",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "一",
+          "ROI": "0",
+          "促销节点": "双11爆发",
+          "平台": "Shopee",
+          "日期": "11/02",
+          "转化率": "0",
+          "加购率": "0.0164",
           "店铺名": "Shopee-康竺-billiard zone"
         },
         {
@@ -40721,6 +40787,22 @@
           "店铺名": "速卖通-速卖通A （Toplevel Billiards Athletes Club）"
         },
         {
+          "推广费": "53.47",
+          "UV": "182",
+          "加购数": "1",
+          "客单价": "71.02",
+          "全店GMV": "71.02",
+          "订单量": "1",
+          "星期": "四",
+          "ROI": "0",
+          "促销节点": "双11爆发",
+          "平台": "Shopee",
+          "日期": "11/05",
+          "转化率": "0.0058",
+          "加购率": "0.0106",
+          "店铺名": "Shopee-康竺-billiard zone"
+        },
+        {
           "推广费": "319.9599",
           "UV": "363",
           "加购数": "34",
@@ -46153,34 +46235,14 @@
       "name": "4.内容达人日报",
       "group": "内容",
       "tableId": "6z8rcxay1hhhv4xmbbc89",
-      "fieldCount": 19,
+      "fieldCount": 0,
       "rowCount": 0,
-      "rawRows": 7938,
-      "droppedEmptyRows": 7938,
+      "rawRows": 0,
+      "droppedEmptyRows": 0,
       "truncated": false,
-      "pagesFetched": 80,
-      "columns": [
-        "备注",
-        "促销节点",
-        "日期",
-        "星期",
-        "笔记数",
-        "互动",
-        "图文总曝光",
-        "店播新增粉丝",
-        "达人视频发布数",
-        "UGC总播放",
-        "达人视频总互动",
-        "达人视频总播放",
-        "UGC发布数",
-        "店播时长(h)",
-        "店播场观",
-        "品牌自产视频数",
-        "店播GMV",
-        "品牌搜索量",
-        "店铺"
-      ],
-      "rows": []
+      "columns": [],
+      "rows": [],
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/6z8rcxay1hhhv4xmbbc89/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A1B698-5C4D-77C0-8366-D1FA6F9CE09D\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-11-07 23:20:00 到 2026-11-07 23:20:00 请求总次数超过 100 次, 限制将在 2026-11-07 23:20:01 结束.\"}"
     },
     {
       "key": "traffic",
