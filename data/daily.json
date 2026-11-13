@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-12T17:18:59.847Z",
-  "fetchedAtLocal": "2026/11/13 01:18:59",
+  "fetchedAt": "2026-11-13T10:39:01.186Z",
+  "fetchedAtLocal": "2026/11/13 18:39:01",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2967,
+  "totalRows": 2968,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21338,
+  "droppedEmptyRowsTotal": 21337,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1317,
+      "rowCount": 1318,
       "rawRows": 3409,
-      "droppedEmptyRows": 2092,
+      "droppedEmptyRows": 2091,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -7856,6 +7856,23 @@
           "日期": "09/09",
           "转化率": "0",
           "加购率": "0.2",
+          "店铺名": "京东-万世康伦官方旗舰店"
+        },
+        {
+          "推广费": "334.37",
+          "UV": "176",
+          "加购数": "7",
+          "客单价": "1280",
+          "全店GMV": "1280",
+          "订单量": "1",
+          "星期": "四",
+          "ROI": "3.8",
+          "退货率": "0",
+          "促销节点": "双11返场",
+          "平台": "京东",
+          "日期": "11/12",
+          "转化率": "0.0057",
+          "加购率": "0.0389",
           "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
