@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-15T10:29:52.248Z",
-  "fetchedAtLocal": "2026/11/15 18:29:52",
+  "fetchedAt": "2026-11-15T16:01:18.963Z",
+  "fetchedAtLocal": "2026/11/16 00:01:18",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -12,17 +12,13 @@
   "tableCount": 10,
   "okTables": 4,
   "totalRows": 2984,
-  "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21321,
+  "rawRowsTotal": 16367,
+  "droppedEmptyRowsTotal": 13383,
   "truncatedTables": [],
   "emptyTables": [
     {
       "key": "overview",
       "name": "1.日报总览"
-    },
-    {
-      "key": "ads",
-      "name": "3.投放日报"
     },
     {
       "key": "content",
@@ -41,8 +37,14 @@
       "name": "7.团队战力评估"
     }
   ],
-  "complete": true,
-  "failedTables": [],
+  "complete": false,
+  "failedTables": [
+    {
+      "key": "ads",
+      "name": "3.投放日报",
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A1DFEF-DBC3-7661-97D7-6B2D0922D268\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-11-16 00:00:00 到 2026-11-16 00:00:00 请求总次数超过 200 次, 限制将在 2026-11-16 00:00:01 结束.\"}"
+    }
+  ],
   "ownerJoin": {
     "column": "负责人",
     "from": "11.店铺负责人（jLVFycP）",
@@ -46853,26 +46855,14 @@
       "name": "3.投放日报",
       "group": "投放",
       "tableId": "p8b405p6gt2jgntr1ul26",
-      "fieldCount": 11,
+      "fieldCount": 0,
       "rowCount": 0,
-      "rawRows": 7938,
-      "droppedEmptyRows": 7938,
+      "rawRows": 0,
+      "droppedEmptyRows": 0,
       "truncated": false,
-      "pagesFetched": 80,
-      "columns": [
-        "备注",
-        "星期",
-        "促销节点",
-        "日期",
-        "展示",
-        "花费",
-        "成交",
-        "ROI",
-        "CTR",
-        "点击",
-        "店铺"
-      ],
-      "rows": []
+      "columns": [],
+      "rows": [],
+      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A1DFEF-DBC3-7661-97D7-6B2D0922D268\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-11-16 00:00:00 到 2026-11-16 00:00:00 请求总次数超过 200 次, 限制将在 2026-11-16 00:00:01 结束.\"}"
     },
     {
       "key": "content",
