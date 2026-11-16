@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-15T16:01:18.963Z",
-  "fetchedAtLocal": "2026/11/16 00:01:18",
+  "fetchedAt": "2026-11-16T10:44:47.867Z",
+  "fetchedAtLocal": "2026/11/16 18:44:47",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,14 +11,18 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 2984,
-  "rawRowsTotal": 16367,
-  "droppedEmptyRowsTotal": 13383,
+  "totalRows": 2987,
+  "rawRowsTotal": 24305,
+  "droppedEmptyRowsTotal": 21318,
   "truncatedTables": [],
   "emptyTables": [
     {
       "key": "overview",
       "name": "1.日报总览"
+    },
+    {
+      "key": "ads",
+      "name": "3.投放日报"
     },
     {
       "key": "content",
@@ -37,14 +41,8 @@
       "name": "7.团队战力评估"
     }
   ],
-  "complete": false,
-  "failedTables": [
-    {
-      "key": "ads",
-      "name": "3.投放日报",
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A1DFEF-DBC3-7661-97D7-6B2D0922D268\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-11-16 00:00:00 到 2026-11-16 00:00:00 请求总次数超过 200 次, 限制将在 2026-11-16 00:00:01 结束.\"}"
-    }
-  ],
+  "complete": true,
+  "failedTables": [],
   "ownerJoin": {
     "column": "负责人",
     "from": "11.店铺负责人（jLVFycP）",
@@ -160,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1318,
+      "rowCount": 1321,
       "rawRows": 3409,
-      "droppedEmptyRows": 2091,
+      "droppedEmptyRows": 2088,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -1202,6 +1200,23 @@
           "日期": "08/23",
           "转化率": "0.001",
           "店铺名": "得物-KONLLEN"
+        },
+        {
+          "推广费": "0",
+          "UV": "73",
+          "加购数": "5",
+          "客单价": "0",
+          "全店GMV": "0",
+          "订单量": "0",
+          "星期": "日",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双11返场",
+          "平台": "京东",
+          "日期": "11/15",
+          "转化率": "0",
+          "加购率": "0.1111",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "207.68",
@@ -11115,6 +11130,23 @@
           "店铺名": "京东-CRICAL欧立龙专卖店"
         },
         {
+          "推广费": "428.67",
+          "UV": "189",
+          "加购数": "18",
+          "客单价": "1691",
+          "全店GMV": "1691",
+          "订单量": "1",
+          "星期": "五",
+          "ROI": "3.9",
+          "退货率": "0",
+          "促销节点": "双11返场",
+          "平台": "京东",
+          "日期": "11/13",
+          "转化率": "0.0053",
+          "加购率": "0.0521",
+          "店铺名": "京东-万世康伦官方旗舰店"
+        },
+        {
           "推广费": "0",
           "UV": "4",
           "加购数": "0",
@@ -16836,6 +16868,23 @@
           "日期": "10/06",
           "转化率": "0.0108",
           "加购率": "0.6437",
+          "店铺名": "京东-万世康伦官方旗舰店"
+        },
+        {
+          "推广费": "236.96",
+          "UV": "122",
+          "加购数": "1",
+          "客单价": "790",
+          "全店GMV": "790",
+          "订单量": "1",
+          "星期": "六",
+          "ROI": "3.3",
+          "退货率": "0",
+          "促销节点": "双11返场",
+          "平台": "京东",
+          "日期": "11/14",
+          "转化率": "0.0082",
+          "加购率": "0.0308",
           "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
@@ -46855,14 +46904,26 @@
       "name": "3.投放日报",
       "group": "投放",
       "tableId": "p8b405p6gt2jgntr1ul26",
-      "fieldCount": 0,
+      "fieldCount": 11,
       "rowCount": 0,
-      "rawRows": 0,
-      "droppedEmptyRows": 0,
+      "rawRows": 7938,
+      "droppedEmptyRows": 7938,
       "truncated": false,
-      "columns": [],
-      "rows": [],
-      "error": "POST https://api.dingtalk.com/v1.0/notable/bases/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4/sheets/p8b405p6gt2jgntr1ul26/records/list?operatorId=rXIYZJsjpuXqXpVAZ1Fo7wiEiE -> HTTP 403: {\"code\":\"Forbidden.AccessDenied.QpsLimitForApi\",\"requestid\":\"01A1DFEF-DBC3-7661-97D7-6B2D0922D268\",\"message\":\"当前所有钉钉应用调用该接口次数过多，超出了该接口承受的最大qps，请求被暂时限制了，建议错开整点时刻调用该接口, apiPath(notable_1.0#ListRecords), 从 2026-11-16 00:00:00 到 2026-11-16 00:00:00 请求总次数超过 200 次, 限制将在 2026-11-16 00:00:01 结束.\"}"
+      "pagesFetched": 80,
+      "columns": [
+        "备注",
+        "星期",
+        "促销节点",
+        "日期",
+        "展示",
+        "花费",
+        "成交",
+        "ROI",
+        "CTR",
+        "点击",
+        "店铺"
+      ],
+      "rows": []
     },
     {
       "key": "content",
