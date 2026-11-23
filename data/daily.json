@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-22T16:51:46.234Z",
-  "fetchedAtLocal": "2026/11/23 00:51:46",
+  "fetchedAt": "2026-11-23T11:54:27.457Z",
+  "fetchedAtLocal": "2026/11/23 19:54:27",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 3040,
+  "totalRows": 3042,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21265,
+  "droppedEmptyRowsTotal": 21263,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1348,
+      "rowCount": 1350,
       "rawRows": 3409,
-      "droppedEmptyRows": 2061,
+      "droppedEmptyRows": 2059,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -2879,6 +2879,23 @@
           "转化率": "0.0066",
           "加购率": "0.028300000000000002",
           "店铺名": "天猫-KONLLEN"
+        },
+        {
+          "推广费": "0",
+          "UV": "53",
+          "加购数": "2",
+          "客单价": "903.1",
+          "全店GMV": "2709",
+          "订单量": "3",
+          "星期": "六",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双12蓄力",
+          "平台": "京东",
+          "日期": "11/21",
+          "转化率": "0.0566",
+          "加购率": "0.0192",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "140.22",
@@ -20261,6 +20278,23 @@
           "转化率": "0",
           "加购率": "0",
           "店铺名": "快手小店-KONLLEN鼎域专卖店"
+        },
+        {
+          "推广费": "0",
+          "UV": "68",
+          "加购数": "9",
+          "客单价": "1419.5",
+          "全店GMV": "1419.5",
+          "订单量": "1",
+          "星期": "日",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双12蓄力",
+          "平台": "京东",
+          "日期": "11/22",
+          "转化率": "0.0147",
+          "加购率": "0.1324",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "12.24",
