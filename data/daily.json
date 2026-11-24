@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-23T20:48:41.876Z",
-  "fetchedAtLocal": "2026/11/24 04:48:41",
+  "fetchedAt": "2026-11-24T13:22:42.785Z",
+  "fetchedAtLocal": "2026/11/24 21:22:42",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 3042,
+  "totalRows": 3043,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21263,
+  "droppedEmptyRowsTotal": 21262,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1350,
+      "rowCount": 1351,
       "rawRows": 3409,
-      "droppedEmptyRows": 2059,
+      "droppedEmptyRows": 2058,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -1487,6 +1487,23 @@
           "转化率": "0",
           "加购率": "0",
           "店铺名": "京东-科瑞克官方旗舰店"
+        },
+        {
+          "推广费": "0",
+          "UV": "65",
+          "加购数": "2",
+          "客单价": "65",
+          "全店GMV": "65",
+          "订单量": "1",
+          "星期": "一",
+          "ROI": "0",
+          "退货率": "0",
+          "促销节点": "双12蓄力",
+          "平台": "京东",
+          "日期": "11/23",
+          "转化率": "0.0154",
+          "加购率": "0.0588",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "UV": "575",
