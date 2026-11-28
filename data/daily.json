@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-11-27T18:39:23.247Z",
-  "fetchedAtLocal": "2026/11/28 02:39:23",
+  "fetchedAt": "2026-11-28T11:27:38.706Z",
+  "fetchedAtLocal": "2026/11/28 19:27:38",
   "source": "电商营销备战-日报追踪表",
   "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
   "baseId": "OG9lyrgJPzYDzl1ESvXRdpEYWzN67Mw4",
@@ -11,9 +11,9 @@
   "dropEmptyRows": true,
   "tableCount": 10,
   "okTables": 4,
-  "totalRows": 3045,
+  "totalRows": 3047,
   "rawRowsTotal": 24305,
-  "droppedEmptyRowsTotal": 21260,
+  "droppedEmptyRowsTotal": 21258,
   "truncatedTables": [],
   "emptyTables": [
     {
@@ -158,9 +158,9 @@
       "group": "分店铺",
       "tableId": "lb3j254h8wqiur8qchavd",
       "fieldCount": 19,
-      "rowCount": 1353,
+      "rowCount": 1355,
       "rawRows": 3409,
-      "droppedEmptyRows": 2056,
+      "droppedEmptyRows": 2054,
       "truncated": false,
       "pagesFetched": 35,
       "columns": [
@@ -6333,6 +6333,23 @@
           "转化率": "0.023",
           "加购率": "0.0344",
           "店铺名": "淘宝-九跃台球用品店"
+        },
+        {
+          "推广费": "202.09",
+          "UV": "68",
+          "加购数": "6",
+          "客单价": "882",
+          "全店GMV": "1764",
+          "订单量": "2",
+          "星期": "四",
+          "ROI": "8.73",
+          "退货率": "0",
+          "促销节点": "双12蓄力",
+          "平台": "京东",
+          "日期": "11/26",
+          "转化率": "0.0294",
+          "加购率": "0.0714",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "0",
@@ -18630,6 +18647,23 @@
           "转化率": "0",
           "加购率": "0",
           "店铺名": "京东-科瑞克官方旗舰店"
+        },
+        {
+          "推广费": "234.22",
+          "UV": "143",
+          "加购数": "8",
+          "客单价": "807.67",
+          "全店GMV": "2423",
+          "订单量": "3",
+          "星期": "五",
+          "ROI": "10.34",
+          "退货率": "0",
+          "促销节点": "双12蓄力",
+          "平台": "京东",
+          "日期": "11/27",
+          "转化率": "0.021",
+          "加购率": "0.0473",
+          "店铺名": "京东-万世康伦官方旗舰店"
         },
         {
           "推广费": "0",
